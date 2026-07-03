@@ -1,0 +1,1 @@
+Implement research features including Elo, Glicko, TrueSkill, rolling statistics, trend analysis, similarity engine, map strengths, team strengths, historical comparisons, Monte Carlo simulations for research projections, confidence intervals, and explainable outputs. No sportsbook integrations.

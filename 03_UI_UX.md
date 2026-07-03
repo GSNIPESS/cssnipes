@@ -1,0 +1,1 @@
+Use Next.js with a clean CS2-inspired dark theme. Build pages for Home, Matches, Players, Teams, Rankings, Events, Search, Compare, and detailed player/team/match pages. Optimize for desktop and mobile. Prefer reusable components and fast navigation.

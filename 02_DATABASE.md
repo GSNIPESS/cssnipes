@@ -1,0 +1,1 @@
+Use PostgreSQL with Prisma. Design normalized tables for Teams, Players, Rosters, Events, Matches, Maps, PlayerStats, Rankings, Transfers, Patches, HistoricalSnapshots and derived analytics. Support incremental updates, historical snapshots, indexes, caching, and efficient search.

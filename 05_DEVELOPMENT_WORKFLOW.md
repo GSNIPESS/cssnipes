@@ -1,0 +1,1 @@
+Phase 1: initialize project, tooling, Docker, CI, database. Phase 2: core layout and routing. Phase 3: database models. Phase 4: ingestion pipeline. Phase 5: API. Phase 6: UI. Phase 7: analytics. Phase 8: testing, optimization, deployment. Finish each phase before starting the next.
