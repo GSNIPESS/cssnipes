@@ -1,0 +1,369 @@
+// CS2 Research Platform — database schema (see docs/02_DATABASE.md)
+// Normalized core entities + derived analytics tables.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------- Enums ----------
+
+enum PlayerRole {
+  IGL
+  AWPER
+  RIFLER
+  SUPPORT
+  LURKER
+  COACH
+}
+
+enum EventTier {
+  S
+  A
+  B
+  C
+  QUALIFIER
+}
+
+enum MatchStatus {
+  SCHEDULED
+  LIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum MapStatus {
+  UPCOMING
+  LIVE
+  COMPLETED
+}
+
+enum RankingSource {
+  HLTV
+  VALVE
+  INTERNAL
+}
+
+enum RatingSystem {
+  ELO
+  GLICKO
+  TRUESKILL
+}
+
+enum TransferType {
+  TRANSFER
+  LOAN
+  BENCHED
+  RETIRED
+  STAND_IN
+}
+
+enum SnapshotEntity {
+  TEAM
+  PLAYER
+  RANKING
+}
+
+// ---------- Core entities ----------
+
+model Team {
+  id        String    @id @default(cuid())
+  slug      String    @unique
+  name      String
+  country   String? // ISO 3166-1 alpha-2
+  logoUrl   String?
+  foundedAt DateTime?
+  disbanded Boolean   @default(false)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  rosters      Roster[]
+  matchesAsA   Match[]              @relation("TeamA")
+  matchesAsB   Match[]              @relation("TeamB")
+  matchesWon   Match[]              @relation("MatchWinner")
+  mapsWon      MatchMap[]           @relation("MapWinner")
+  mapsPicked   MatchMap[]           @relation("MapPicker")
+  playerStats  PlayerStat[]
+  rankings     Ranking[]
+  transfersIn  Transfer[]           @relation("TransferTo")
+  transfersOut Transfer[]           @relation("TransferFrom")
+  ratings      TeamRating[]
+  mapStrengths TeamMapStrength[]
+  snapshots    HistoricalSnapshot[]
+
+  @@index([name])
+  @@index([country])
+}
+
+model Player {
+  id        String     @id @default(cuid())
+  slug      String     @unique
+  nickname  String
+  firstName String?
+  lastName  String?
+  country   String?
+  role      PlayerRole @default(RIFLER)
+  birthdate DateTime?
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  rosters      Roster[]
+  stats        PlayerStat[]
+  transfers    Transfer[]
+  rollingStats PlayerRollingStat[]
+  snapshots    HistoricalSnapshot[]
+
+  @@index([nickname])
+  @@index([country])
+}
+
+/// Historical team membership. A player's current team is the roster row
+/// with endDate = null.
+model Roster {
+  id        String     @id @default(cuid())
+  teamId    String
+  playerId  String
+  role      PlayerRole @default(RIFLER)
+  startDate DateTime
+  endDate   DateTime?
+
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, playerId, startDate])
+  @@index([playerId, endDate])
+  @@index([teamId, endDate])
+}
+
+model Event {
+  id        String    @id @default(cuid())
+  slug      String    @unique
+  name      String
+  tier      EventTier @default(B)
+  prizePool Int? // USD
+  location  String?
+  isLan     Boolean   @default(false)
+  startDate DateTime
+  endDate   DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  matches Match[]
+
+  @@index([name])
+  @@index([startDate])
+}
+
+model Match {
+  id          String      @id @default(cuid())
+  externalId  String?     @unique // upstream source id for incremental updates
+  eventId     String
+  teamAId     String
+  teamBId     String
+  bestOf      Int         @default(3)
+  stage       String? // e.g. "Group A", "Grand Final"
+  status      MatchStatus @default(SCHEDULED)
+  scheduledAt DateTime
+  startedAt   DateTime?
+  endedAt     DateTime?
+  scoreA      Int         @default(0)
+  scoreB      Int         @default(0)
+  winnerId    String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  event  Event      @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  teamA  Team       @relation("TeamA", fields: [teamAId], references: [id])
+  teamB  Team       @relation("TeamB", fields: [teamBId], references: [id])
+  winner Team?      @relation("MatchWinner", fields: [winnerId], references: [id])
+  maps   MatchMap[]
+
+  @@index([eventId])
+  @@index([status, scheduledAt])
+  @@index([teamAId])
+  @@index([teamBId])
+}
+
+/// Map catalog (de_mirage, de_inferno, ...).
+model GameMap {
+  id           String  @id @default(cuid())
+  name         String  @unique
+  displayName  String
+  isActiveDuty Boolean @default(true)
+
+  matchMaps    MatchMap[]
+  mapStrengths TeamMapStrength[]
+}
+
+/// One played (or scheduled) map within a match.
+model MatchMap {
+  id             String    @id @default(cuid())
+  matchId        String
+  mapId          String
+  mapNumber      Int
+  status         MapStatus @default(UPCOMING)
+  scoreA         Int       @default(0)
+  scoreB         Int       @default(0)
+  firstHalfA     Int       @default(0)
+  firstHalfB     Int       @default(0)
+  overtimeA      Int       @default(0)
+  overtimeB      Int       @default(0)
+  winnerId       String?
+  pickedByTeamId String?
+
+  match    Match        @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  map      GameMap      @relation(fields: [mapId], references: [id])
+  winner   Team?        @relation("MapWinner", fields: [winnerId], references: [id])
+  pickedBy Team?        @relation("MapPicker", fields: [pickedByTeamId], references: [id])
+  stats    PlayerStat[]
+
+  @@unique([matchId, mapNumber])
+  @@index([mapId])
+}
+
+/// Per-player, per-map performance line.
+model PlayerStat {
+  id            String @id @default(cuid())
+  playerId      String
+  teamId        String
+  matchMapId    String
+  kills         Int    @default(0)
+  deaths        Int    @default(0)
+  assists       Int    @default(0)
+  headshots     Int    @default(0)
+  flashAssists  Int    @default(0)
+  firstKills    Int    @default(0)
+  firstDeaths   Int    @default(0)
+  clutchesWon   Int    @default(0)
+  utilityDamage Int    @default(0)
+  adr           Float  @default(0)
+  kast          Float  @default(0) // %
+  rating        Float  @default(0) // HLTV-style 2.0 rating
+
+  player   Player   @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  team     Team     @relation(fields: [teamId], references: [id])
+  matchMap MatchMap @relation(fields: [matchMapId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, matchMapId])
+  @@index([playerId])
+  @@index([teamId])
+  @@index([matchMapId])
+}
+
+/// External or internal team ranking on a given date.
+model Ranking {
+  id     String        @id @default(cuid())
+  teamId String
+  source RankingSource
+  rank   Int
+  points Int?
+  date   DateTime
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, source, date])
+  @@index([source, date, rank])
+}
+
+model Transfer {
+  id         String       @id @default(cuid())
+  playerId   String
+  fromTeamId String?
+  toTeamId   String?
+  type       TransferType @default(TRANSFER)
+  date       DateTime
+  notes      String?
+
+  player   Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  fromTeam Team?  @relation("TransferFrom", fields: [fromTeamId], references: [id])
+  toTeam   Team?  @relation("TransferTo", fields: [toTeamId], references: [id])
+
+  @@index([playerId, date])
+  @@index([date])
+}
+
+/// CS2 game patches, for splitting analytics by game version.
+model Patch {
+  id         String   @id @default(cuid())
+  version    String   @unique
+  releasedAt DateTime
+  summary    String?
+
+  @@index([releasedAt])
+}
+
+/// Point-in-time JSON snapshot of an entity, for historical comparisons.
+model HistoricalSnapshot {
+  id       String         @id @default(cuid())
+  entity   SnapshotEntity
+  teamId   String?
+  playerId String?
+  date     DateTime
+  payload  Json
+
+  team   Team?   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  player Player? @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@index([entity, date])
+  @@index([teamId, date])
+  @@index([playerId, date])
+}
+
+// ---------- Derived analytics ----------
+
+/// Team skill rating over time (Elo / Glicko / TrueSkill), recomputed by
+/// the analytics pipeline (docs/04_ANALYTICS.md).
+model TeamRating {
+  id         String       @id @default(cuid())
+  teamId     String
+  system     RatingSystem
+  rating     Float
+  deviation  Float? // Glicko RD / TrueSkill sigma
+  volatility Float?
+  date       DateTime
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, system, date])
+  @@index([system, date])
+}
+
+/// Per-map team strength derived from recent results.
+model TeamMapStrength {
+  id           String   @id @default(cuid())
+  teamId       String
+  mapId        String
+  winRate      Float
+  roundWinRate Float?
+  sampleSize   Int
+  asOfDate     DateTime
+
+  team Team    @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  map  GameMap @relation(fields: [mapId], references: [id])
+
+  @@unique([teamId, mapId, asOfDate])
+  @@index([mapId, asOfDate])
+}
+
+/// Rolling-window player form (e.g. last 10 maps / last 3 months).
+model PlayerRollingStat {
+  id         String   @id @default(cuid())
+  playerId   String
+  window     String // e.g. "LAST_10_MAPS", "LAST_3_MONTHS"
+  rating     Float
+  kd         Float
+  adr        Float
+  kast       Float
+  sampleSize Int
+  asOfDate   DateTime
+
+  player Player @relation(fields: [playerId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, window, asOfDate])
+  @@index([window, asOfDate])
+}
