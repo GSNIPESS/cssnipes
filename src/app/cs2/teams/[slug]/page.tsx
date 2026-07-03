@@ -1,0 +1,121 @@
+import { notFound } from "next/navigation";
+import { Card, EmptyState, PlayerLink, Table, Td, Th } from "@/components/ui";
+import { MatchList } from "@/components/match-row";
+import { formatDate, formatPercent } from "@/lib/format";
+import { getTeamBySlug, getTeamRecord } from "@/lib/queries/teams";
+import { getTeamRecentMatches } from "@/lib/queries/matches";
+
+export default async function TeamProfilePage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const team = await getTeamBySlug(slug);
+  if (!team) notFound();
+
+  const [record, recentMatches] = await Promise.all([
+    getTeamRecord(team.id),
+    getTeamRecentMatches(team.id, 10),
+  ]);
+
+  const latestRanking = team.rankings[0];
+  const latestElo = team.ratings.find((r) => r.system === "ELO");
+
+  // Latest map-strength snapshot per map.
+  const seenMaps = new Set<string>();
+  const mapStrengths = team.mapStrengths.filter((ms) => {
+    if (seenMaps.has(ms.mapId)) return false;
+    seenMaps.add(ms.mapId);
+    return true;
+  });
+
+  return (
+    <>
+      <div className="mb-8 rounded-lg border border-edge bg-surface p-6">
+        <h1 className="text-3xl font-bold">{team.name}</h1>
+        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-sm text-muted">
+          {team.country && <span>Country: {team.country}</span>}
+          {team.foundedAt && <span>Founded: {formatDate(team.foundedAt)}</span>}
+          {team.disbanded && <span className="text-loss">Disbanded</span>}
+        </div>
+        <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <Stat label="World rank" value={latestRanking ? `#${latestRanking.rank}` : "—"} />
+          <Stat label="Elo" value={latestElo ? String(Math.round(latestElo.rating)) : "—"} />
+          <Stat label="Record" value={`${record.won}W – ${record.lost}L`} />
+          <Stat
+            label="Win rate"
+            value={record.played ? formatPercent(record.won / record.played) : "—"}
+          />
+        </div>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="space-y-6 lg:col-span-2">
+          <Card title="Recent matches">
+            {recentMatches.length ? (
+              <MatchList matches={recentMatches} />
+            ) : (
+              <EmptyState>No matches recorded.</EmptyState>
+            )}
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card title="Active roster">
+            {team.rosters.length ? (
+              <ul className="space-y-2 text-sm">
+                {team.rosters.map((r) => (
+                  <li key={r.id} className="flex items-center justify-between">
+                    <PlayerLink slug={r.player.slug} nickname={r.player.nickname} />
+                    <span className="font-mono text-xs text-muted">{r.role}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyState>No active roster.</EmptyState>
+            )}
+          </Card>
+
+          <Card title="Map strengths">
+            {mapStrengths.length ? (
+              <Table>
+                <thead>
+                  <tr>
+                    <Th>Map</Th>
+                    <Th align="right">Win rate</Th>
+                    <Th align="right">Maps</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mapStrengths.map((ms) => (
+                    <tr key={ms.id}>
+                      <Td>{ms.map.displayName}</Td>
+                      <Td align="right" mono>
+                        <span className={ms.winRate >= 0.5 ? "text-win" : "text-loss"}>
+                          {formatPercent(ms.winRate)}
+                        </span>
+                      </Td>
+                      <Td align="right" mono>{ms.sampleSize}</Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            ) : (
+              <EmptyState>No map data.</EmptyState>
+            )}
+          </Card>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md bg-surface-2 p-3">
+      <div className="text-xs uppercase tracking-wider text-muted">{label}</div>
+      <div className="mt-1 font-mono text-xl font-bold">{value}</div>
+    </div>
+  );
+}
