@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@/generated/prisma/client";
-import { SnapshotEntity, RatingSystem } from "@/generated/prisma/client";
+import { SnapshotEntity } from "@/generated/prisma/client";
 import { recomputeTeamRatings } from "./ratings";
 import { recomputeMapStrengths, recomputeRollingStats } from "./performance";
 
@@ -25,17 +25,21 @@ export async function recomputeAnalytics(
   const rollingStatRows = await recomputeRollingStats(prisma);
   const mapStrengthRows = await recomputeMapStrengths(prisma);
 
-  // Snapshot the post-recompute Elo standings.
-  const latestElo = await prisma.teamRating.findMany({
-    where: { system: RatingSystem.ELO },
-    orderBy: [{ teamId: "asc" }, { date: "desc" }],
-    distinct: ["teamId"],
-    include: { team: { select: { slug: true } } },
-  });
+  // Snapshot the post-recompute Elo standings (top 100; DISTINCT ON keeps
+  // the latest-per-team resolution in the database).
+  const latestElo = await prisma.$queryRaw<Array<{ slug: string; rating: number }>>`
+    SELECT t.slug, x.rating FROM (
+      SELECT DISTINCT ON ("teamId") "teamId", rating
+      FROM "TeamRating" WHERE system = 'ELO'
+      ORDER BY "teamId", date DESC
+    ) x JOIN "Team" t ON t.id = x."teamId"
+    ORDER BY x.rating DESC LIMIT 100`;
   if (latestElo.length > 0) {
-    const standings = [...latestElo]
-      .sort((a, b) => b.rating - a.rating)
-      .map((r, i) => ({ rank: i + 1, team: r.team.slug, elo: Math.round(r.rating) }));
+    const standings = latestElo.map((r, i) => ({
+      rank: i + 1,
+      team: r.slug,
+      elo: Math.round(r.rating),
+    }));
     await prisma.historicalSnapshot.create({
       data: {
         entity: SnapshotEntity.RANKING,

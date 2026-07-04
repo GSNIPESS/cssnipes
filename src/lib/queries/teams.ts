@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { RankingSource, RatingSystem } from "@/generated/prisma/client";
+import { RankingSource } from "@/generated/prisma/client";
 
 /**
  * Teams with their latest HLTV rank and internal Elo, ordered by rank then
@@ -13,12 +13,10 @@ export async function getTeamsOverview() {
       select: { id: true, slug: true, name: true, country: true },
       orderBy: { name: "asc" },
     }),
-    prisma.teamRating.findMany({
-      where: { system: RatingSystem.ELO },
-      orderBy: [{ teamId: "asc" }, { date: "desc" }],
-      distinct: ["teamId"],
-      select: { teamId: true, rating: true },
-    }),
+    prisma.$queryRaw<Array<{ teamId: string; rating: number }>>`
+      SELECT DISTINCT ON ("teamId") "teamId", rating
+      FROM "TeamRating" WHERE system = 'ELO'
+      ORDER BY "teamId", date DESC`,
     prisma.ranking.findMany({
       where: { source: RankingSource.HLTV },
       orderBy: [{ teamId: "asc" }, { date: "desc" }],

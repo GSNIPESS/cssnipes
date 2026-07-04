@@ -33,7 +33,8 @@ export default async function RankingsPage() {
     row.ts = r.rating;
     bySlug.set(r.team.slug, row);
   }
-  const modelRows = [...bySlug.values()].sort((a, b) => (b.elo ?? 0) - (a.elo ?? 0));
+  const allModelRows = [...bySlug.values()].sort((a, b) => (b.elo ?? 0) - (a.elo ?? 0));
+  const modelRows = allModelRows.slice(0, 100);
 
   return (
     <>
@@ -84,7 +85,10 @@ export default async function RankingsPage() {
           title="Model ratings (Elo · Glicko-2 · TrueSkill)"
           action={
             elo.date && (
-              <span className="text-xs text-muted">{formatDate(elo.date)}</span>
+              <span className="text-xs text-muted">
+                Top {modelRows.length} of {allModelRows.length} rated teams ·{" "}
+                {formatDate(elo.date)}
+              </span>
             )
           }
         >
