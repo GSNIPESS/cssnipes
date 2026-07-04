@@ -110,8 +110,8 @@ export type Cs2Record = z.infer<typeof cs2RecordSchema>;
 
 export function slugify(input: string): string {
   return input
-    .toLowerCase()
     .normalize("NFKD")
+    .toLowerCase()
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");

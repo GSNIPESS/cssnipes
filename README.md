@@ -1,36 +1,65 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CSSNIPES — CS2 Research Platform
 
-## Getting Started
+Research-first Counter-Strike 2 analytics: matches, players, teams, rankings,
+per-map statistics, rating models, and comparison tooling on a normalized
+PostgreSQL database. Built to extend to NHL/MLB by adding sport modules.
+No sportsbook content.
 
-First, run the development server:
+Specifications live in [`docs/`](docs/); the phase plan is
+[`docs/05_DEVELOPMENT_WORKFLOW.md`](docs/05_DEVELOPMENT_WORKFLOW.md).
+
+## Stack
+
+Next.js 16 (App Router, server components) · strict TypeScript · Tailwind v4 ·
+Prisma 7 + PostgreSQL 17 · zod · Recharts · Vitest.
+
+## Getting started
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env            # point DATABASE_URL at your Postgres
+docker compose up -d            # or use a local Postgres
+npx prisma migrate deploy
+npx prisma generate
+npm run db:seed                 # deterministic sample data
+npm run dev                     # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Scripts
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Script | Purpose |
+| --- | --- |
+| `npm run dev` / `build` / `start` | Next.js app |
+| `npm test` | Unit tests (rating math, schemas, rate limiter) |
+| `npm run db:migrate` / `db:seed` / `db:studio` | Database workflows |
+| `npm run ingest -- --list` | Show ingestion providers and configuration state |
+| `npm run ingest -- --sport cs2 --provider pandascore` | Sync from PandaScore (needs `PANDASCORE_API_KEY`) |
+| `npm run ingest -- --sport cs2 --provider local-json` | Import canonical JSON from `data/imports/cs2/` |
+| `npm run analytics` | Recompute Elo / Glicko-2 / TrueSkill, rolling form, map strengths |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Architecture
 
-## Learn More
+- `src/app` — routes: `/cs2/*` pages and the read-only REST API under
+  `/api/v1/cs2/*` (matches, players, teams, events, rankings, search,
+  player similarity).
+- `src/lib/queries` — typed Prisma query layer shared by pages and API.
+- `src/ingestion` — sport-agnostic pipeline (rate limiting, retries,
+  incremental cursors, run audit log) + CS2 providers. See
+  [`src/ingestion/README.md`](src/ingestion/README.md).
+- `src/analytics` — pure rating implementations (Elo, Glicko-2, TrueSkill)
+  replayed over completed matches, rolling player form, per-map team
+  strengths, similarity engine, ranking snapshots.
+- `prisma/` — schema and migrations.
 
-To learn more about Next.js, take a look at the following resources:
+## Deployment
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Provision PostgreSQL and set `DATABASE_URL` (plus `PANDASCORE_API_KEY` to
+   enable live ingestion).
+2. `npx prisma migrate deploy` against the production database.
+3. Either deploy to a Node host/Vercel, or build the container:
+   `docker build -t cssnipes . && docker run -p 3000:3000 -e DATABASE_URL=... cssnipes`.
+4. Schedule `npm run ingest -- --sport cs2 --provider pandascore` followed by
+   `npm run analytics` (e.g. cron every 15 minutes) to keep data fresh.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+CI (GitHub Actions) migrates + seeds a Postgres service, then runs lint,
+unit tests, typecheck, and a production build on every push/PR.
