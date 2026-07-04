@@ -14,7 +14,7 @@ export async function getTeamsOverview() {
       ratings: {
         where: { system: RatingSystem.ELO },
         orderBy: { date: "desc" },
-        take: 1,
+        take: 1, // per-team latest; ratings are written per match
       },
       _count: { select: { rosters: { where: { endDate: null } } } },
     },

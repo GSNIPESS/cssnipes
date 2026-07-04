@@ -11,7 +11,8 @@
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
-    "ingest": "tsx scripts/ingest.ts"
+    "ingest": "tsx scripts/ingest.ts",
+    "analytics": "tsx scripts/analytics.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",

@@ -8,6 +8,10 @@ import {
   getPlayerCareerTotals,
   getPlayerRecentStats,
 } from "@/lib/queries/players";
+import { getSimilarPlayers } from "@/analytics";
+import { prisma } from "@/lib/prisma";
+import { formatPercent } from "@/lib/format";
+import { PlayerLink } from "@/components/ui";
 
 export default async function PlayerProfilePage({
   params,
@@ -18,9 +22,10 @@ export default async function PlayerProfilePage({
   const player = await getPlayerBySlug(slug);
   if (!player) notFound();
 
-  const [career, recentStats] = await Promise.all([
+  const [career, recentStats, similar] = await Promise.all([
     getPlayerCareerTotals(player.id),
     getPlayerRecentStats(player.id, 15),
+    getSimilarPlayers(prisma, player.id),
   ]);
 
   const currentRoster = player.rosters.find((r) => r.endDate === null);
@@ -170,6 +175,28 @@ export default async function PlayerProfilePage({
               </dl>
             ) : (
               <EmptyState>No form data.</EmptyState>
+            )}
+          </Card>
+
+          <Card title="Similar players (by current form)">
+            {similar.length ? (
+              <ul className="space-y-2 text-sm">
+                {similar.map((s) => (
+                  <li key={s.playerId} className="flex items-center justify-between">
+                    <span>
+                      <PlayerLink slug={s.slug} nickname={s.nickname} />
+                      {s.team && (
+                        <span className="ml-2 text-xs text-muted">{s.team.name}</span>
+                      )}
+                    </span>
+                    <span className="font-mono text-xs text-muted">
+                      {formatPercent(s.similarity)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyState>Not enough form data yet.</EmptyState>
             )}
           </Card>
 

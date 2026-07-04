@@ -18,19 +18,20 @@ export async function getLatestRankings(source: RankingSource) {
   return { date: latest.date, rows };
 }
 
-/** Latest rating per team for a rating system. */
+/**
+ * Latest rating per team for a rating system. Ratings are written per match,
+ * so "latest" is resolved per team, not per snapshot date.
+ */
 export async function getLatestTeamRatings(system: RatingSystem) {
-  const latest = await prisma.teamRating.findFirst({
-    where: { system },
-    orderBy: { date: "desc" },
-    select: { date: true },
-  });
-  if (!latest) return { date: null, rows: [] };
-
   const rows = await prisma.teamRating.findMany({
-    where: { system, date: latest.date },
+    where: { system },
+    orderBy: [{ teamId: "asc" }, { date: "desc" }],
+    distinct: ["teamId"],
     include: { team: { select: { slug: true, name: true, country: true } } },
-    orderBy: { rating: "desc" },
   });
-  return { date: latest.date, rows };
+  if (!rows.length) return { date: null, rows: [] };
+
+  rows.sort((a, b) => b.rating - a.rating);
+  const date = rows.reduce((max, r) => (r.date > max ? r.date : max), rows[0].date);
+  return { date, rows };
 }
