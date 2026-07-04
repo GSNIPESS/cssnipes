@@ -1,0 +1,36 @@
+import { z } from "zod";
+import { handleApi, jsonOk, searchParamsOf } from "@/lib/api";
+import { getLatestRankings, getLatestTeamRatings } from "@/lib/queries/rankings";
+import { RankingSource, RatingSystem } from "@/generated/prisma/client";
+
+export const dynamic = "force-dynamic";
+
+const paramsSchema = z.object({
+  source: z.enum(["hltv", "valve", "elo", "glicko", "trueskill"]).default("hltv"),
+});
+
+const RANKING_SOURCES: Partial<Record<string, RankingSource>> = {
+  hltv: RankingSource.HLTV,
+  valve: RankingSource.VALVE,
+};
+
+const RATING_SYSTEMS: Partial<Record<string, RatingSystem>> = {
+  elo: RatingSystem.ELO,
+  glicko: RatingSystem.GLICKO,
+  trueskill: RatingSystem.TRUESKILL,
+};
+
+export function GET(request: Request) {
+  return handleApi(async () => {
+    const { source } = paramsSchema.parse({
+      source: searchParamsOf(request).get("source") ?? undefined,
+    });
+
+    const rankingSource = RANKING_SOURCES[source];
+    const result = rankingSource
+      ? await getLatestRankings(rankingSource)
+      : await getLatestTeamRatings(RATING_SYSTEMS[source]!);
+
+    return jsonOk(result.rows, { source, asOf: result.date, count: result.rows.length });
+  });
+}
