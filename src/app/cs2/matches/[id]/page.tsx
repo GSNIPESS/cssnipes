@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Badge, Card, Table, Td, Th, TeamLink, PlayerLink } from "@/components/ui";
+import { projectMatch } from "@/analytics/projection";
+import { ProbabilityBar } from "@/components/probability-bar";
+import { Badge, Card, EmptyState, Table, Td, Th, TeamLink, PlayerLink } from "@/components/ui";
 import { formatDateTime, formatDecimal } from "@/lib/format";
 import { getMatchDetail } from "@/lib/queries/matches";
+import { prisma } from "@/lib/prisma";
 
 export default async function MatchDetailPage({
   params,
@@ -14,6 +17,8 @@ export default async function MatchDetailPage({
   if (!match) notFound();
 
   const completed = match.status === "COMPLETED";
+  const pending = match.status === "SCHEDULED" || match.status === "LIVE";
+  const projection = pending ? await projectMatch(prisma, id) : null;
 
   return (
     <>
@@ -61,6 +66,71 @@ export default async function MatchDetailPage({
           </div>
         </div>
       </div>
+
+      {projection?.available && (
+        <div className="mb-6 grid gap-6 lg:grid-cols-2">
+          <Card title="Projection (CSSNIPES Model v1)">
+            <ProbabilityBar
+              labelA={projection.teamA}
+              labelB={projection.teamB}
+              probA={projection.probA}
+            />
+            <dl className="mt-4 space-y-1 text-xs text-muted">
+              <ProjectionRow
+                label="Rating blend (Elo · Glicko-2 · TrueSkill)"
+                value={
+                  projection.components.ratingBlend !== null
+                    ? `${Math.round(projection.components.ratingBlend * 100)}% ${projection.teamA}`
+                    : "no rating history"
+                }
+              />
+              <ProjectionRow
+                label="Opponent-weighted form (last 10)"
+                value={`${signed(projection.components.formAdjustment * 100)}pp · samples ${projection.coverage.formA}/${projection.coverage.formB}`}
+              />
+              <ProjectionRow
+                label="Map component"
+                value={
+                  projection.coverage.maps
+                    ? `${signed(projection.components.mapAdjustment * 100)}pp from predicted maps`
+                    : "no per-map history from provider (contributes 0)"
+                }
+              />
+              <ProjectionRow label="Confidence" value={projection.confidence} />
+            </dl>
+            <p className="mt-3 text-xs text-muted">
+              Deterministic research projection computed from stored results
+              only — not betting advice.
+            </p>
+          </Card>
+
+          <Card title="Predicted pick/ban">
+            {projection.veto.available ? (
+              <ol className="space-y-1.5 text-sm">
+                {projection.veto.steps.map((s, i) => (
+                  <li key={i} className="flex items-baseline gap-2">
+                    <span
+                      className={`w-14 shrink-0 font-mono text-xs uppercase ${
+                        s.action === "pick"
+                          ? "text-win"
+                          : s.action === "decider"
+                            ? "text-accent"
+                            : "text-loss"
+                      }`}
+                    >
+                      {s.action}
+                    </span>
+                    <span className="font-medium">{s.mapName}</span>
+                    <span className="truncate text-xs text-muted">{s.reason}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <EmptyState>{projection.veto.reason}</EmptyState>
+            )}
+          </Card>
+        </div>
+      )}
 
       {match.maps.length === 0 && (
         <p className="text-center text-sm text-muted">
@@ -145,4 +215,17 @@ export default async function MatchDetailPage({
       </div>
     </>
   );
+}
+
+function ProjectionRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-4">
+      <dt>{label}</dt>
+      <dd className="text-right font-mono">{value}</dd>
+    </div>
+  );
+}
+
+function signed(n: number): string {
+  return `${n >= 0 ? "+" : ""}${n.toFixed(1)}`;
 }

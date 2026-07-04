@@ -108,9 +108,11 @@ export async function getPlayerResearch(playerId: string) {
     return { career: null, recent: null, events: [], eventCount: 0, teammates: [] };
   }
 
+  // Current membership: full team history (the provider exposes no real join
+  // dates); closed memberships keep their observed window.
   const windows = rosters.map((r) => ({
     status: "COMPLETED" as const,
-    scheduledAt: { gte: r.startDate, ...(r.endDate ? { lte: r.endDate } : {}) },
+    ...(r.endDate ? { scheduledAt: { gte: r.startDate, lte: r.endDate } } : {}),
     OR: [{ teamAId: r.teamId }, { teamBId: r.teamId }],
   }));
   const teamIds = [...new Set(rosters.map((r) => r.teamId))];

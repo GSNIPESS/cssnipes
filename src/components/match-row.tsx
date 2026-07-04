@@ -47,7 +47,14 @@ function TeamScore({
   );
 }
 
-export function MatchRow({ match }: { match: MatchRowData }) {
+export function MatchRow({
+  match,
+  vetoLine,
+}: {
+  match: MatchRowData;
+  /** Predicted pick/ban summary shown under upcoming matches. */
+  vetoLine?: string;
+}) {
   const completed = match.status === "COMPLETED";
   return (
     <Link
@@ -78,15 +85,27 @@ export function MatchRow({ match }: { match: MatchRowData }) {
           <div>{match.stage ? `${match.stage} · ` : ""}{formatDateTime(match.scheduledAt)}</div>
         </div>
       </div>
+      {vetoLine && (
+        <div className="mt-2 border-t border-edge/50 pt-2 text-xs text-muted">
+          <span className="font-mono uppercase text-accent-dim">Veto </span>
+          {vetoLine}
+        </div>
+      )}
     </Link>
   );
 }
 
-export function MatchList({ matches }: { matches: MatchRowData[] }) {
+export function MatchList({
+  matches,
+  vetoLines,
+}: {
+  matches: MatchRowData[];
+  vetoLines?: Map<string, string>;
+}) {
   return (
     <div className="space-y-2">
       {matches.map((m) => (
-        <MatchRow key={m.id} match={m} />
+        <MatchRow key={m.id} match={m} vetoLine={vetoLines?.get(m.id)} />
       ))}
     </div>
   );

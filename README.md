@@ -159,6 +159,7 @@ Responses send `cache-control: public, s-maxage=30, stale-while-revalidate=60`.
 | --- | --- | --- |
 | `GET /api/v1/cs2/matches` | `status=live\|upcoming\|completed`, `limit` | Match list with teams + event |
 | `GET /api/v1/cs2/matches/:id` | — | Match detail incl. maps + stat lines |
+| `GET /api/v1/cs2/matches/:id/projection` | — | Win probability + predicted pick/ban (upcoming/live) |
 | `GET /api/v1/cs2/players` | `limit`, `offset` | Players with team + form (paginated) |
 | `GET /api/v1/cs2/players/:slug` | — | Profile + career totals + recent stats |
 | `GET /api/v1/cs2/players/:slug/similar` | — | Form-based similar players |

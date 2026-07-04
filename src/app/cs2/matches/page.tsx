@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { vetoLinesForMatches } from "@/analytics/projection";
 import { EmptyState, PageTitle } from "@/components/ui";
 import { MatchList } from "@/components/match-row";
 import {
@@ -7,6 +8,7 @@ import {
   getLiveMatches,
   getUpcomingMatches,
 } from "@/lib/queries/matches";
+import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "Matches" };
 
@@ -35,6 +37,12 @@ export default async function MatchesPage({
         ? await getUpcomingMatches(50)
         : await getCompletedMatches(50);
 
+  // Every upcoming/live match carries a predicted pick/ban line.
+  const vetoLines =
+    tab === "completed"
+      ? undefined
+      : await vetoLinesForMatches(prisma, matches);
+
   return (
     <>
       <PageTitle subtitle="Live, upcoming, and completed matches.">
@@ -58,7 +66,7 @@ export default async function MatchesPage({
       </div>
 
       {matches.length ? (
-        <MatchList matches={matches} />
+        <MatchList matches={matches} vetoLines={vetoLines} />
       ) : (
         <EmptyState>No {tab} matches.</EmptyState>
       )}
