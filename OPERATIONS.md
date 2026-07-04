@@ -72,6 +72,11 @@ Options:
 - **Vercel**: Vercel Cron can only invoke HTTP routes; the CLI scripts would
   need thin API-route wrappers (planned for v1.1) or an external runner.
 
+On Vercel, every deployment also runs `prisma migrate deploy` plus one
+incremental sync via the `vercel-build` script (sync failures never block the
+deploy). That keeps schema current and data reasonably fresh between
+scheduled runs — it complements, not replaces, a recurring schedule.
+
 Monitor the `IngestionRun` table for FAILED rows.
 
 ## API key rotation

@@ -14,7 +14,8 @@
     "ingest": "tsx scripts/ingest.ts",
     "analytics": "tsx scripts/analytics.ts",
     "test": "vitest run",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "vercel-build": "prisma migrate deploy && (npm run ingest -- --sport cs2 --provider pandascore && npm run analytics || echo 'data sync skipped; schema is deployed — see logs above') && next build"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
