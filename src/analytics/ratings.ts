@@ -104,10 +104,15 @@ export async function recomputeTeamRatings(prisma: PrismaClient): Promise<{
     );
   }
 
-  await prisma.$transaction([
-    prisma.teamRating.deleteMany({}),
-    prisma.teamRating.createMany({ data: rows, skipDuplicates: true }),
-  ]);
+  // Chunked rebuild: at full history this is hundreds of thousands of rows.
+  const CHUNK = 10_000;
+  await prisma.teamRating.deleteMany({});
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    await prisma.teamRating.createMany({
+      data: rows.slice(i, i + CHUNK),
+      skipDuplicates: true,
+    });
+  }
 
   return { matchesProcessed: matches.length, ratingRows: rows.length };
 }

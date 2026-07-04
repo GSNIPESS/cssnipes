@@ -118,8 +118,9 @@ npm run analytics
 
 ```bash
 npm run ingest -- --list                                        # registered providers
-npm run ingest -- --sport cs2 --provider pandascore             # full incremental sync
-npm run ingest -- --sport cs2 --provider pandascore --task matches --limit 200
+npm run ingest -- --sport cs2 --provider pandascore             # incremental sync (frequent)
+npm run ingest -- --sport cs2 --provider pandascore-backfill --task matches --limit 8000
+scripts/backfill.sh                                             # walk ALL history (resumable)
 npm run ingest -- --sport cs2 --provider local-json             # canonical JSON import
 ```
 

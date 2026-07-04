@@ -9,7 +9,9 @@ export const ROLLING_WINDOW = "LAST_10_MAPS";
  * without new data are no-ops.
  */
 export async function recomputeRollingStats(prisma: PrismaClient): Promise<number> {
-  const players = await prisma.player.findMany({ select: { id: true } });
+  // Only players with recorded stat lines can have rolling form.
+  const withStats = await prisma.playerStat.groupBy({ by: ["playerId"] });
+  const players = withStats.map((s) => ({ id: s.playerId }));
   const rows: Prisma.PlayerRollingStatCreateManyInput[] = [];
 
   for (const player of players) {

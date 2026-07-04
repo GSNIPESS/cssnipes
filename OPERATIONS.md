@@ -42,8 +42,20 @@ npm run ingest -- --sport cs2 --provider local-json   # import data/imports/cs2/
 - Sync is incremental (cursor per sport/provider/task in `IngestionSyncState`)
   and idempotent (upserts keyed by provider externalId) — safe to re-run anytime.
 - Every run writes an `IngestionRun` audit row (status, counts, warnings, error).
-- A first full sync takes ~1 minute (rate-limited to 1 req/s); incremental
-  re-runs take seconds.
+- Incremental re-runs take seconds.
+
+**Historical backfill** (`pandascore-backfill` provider) walks the complete
+PandaScore history oldest-first with resumable keyset pagination:
+
+```bash
+scripts/backfill.sh                 # loops all tasks until history exhausted
+npm run ingest -- --sport cs2 --provider pandascore-backfill --task matches --limit 8000
+```
+
+If the hourly API quota (1000 requests) is hit mid-backfill the run reports
+FAILED (blocked), the cursor is preserved, and re-running later resumes
+exactly where it stopped. Full CS2 history is ~1,200 requests, so a complete
+first backfill spans about two quota windows.
 
 ## Running analytics
 
