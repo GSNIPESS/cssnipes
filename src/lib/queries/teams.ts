@@ -31,7 +31,11 @@ export async function getTeamsOverview() {
       elo: t.ratings[0]?.rating ?? null,
       activePlayers: t._count.rosters,
     }))
-    .sort((a, b) => (a.rank ?? Infinity) - (b.rank ?? Infinity));
+    .sort(
+      (a, b) =>
+        (a.rank ?? Infinity) - (b.rank ?? Infinity) ||
+        (b.elo ?? -Infinity) - (a.elo ?? -Infinity)
+    );
 }
 
 export function getTeamBySlug(slug: string) {

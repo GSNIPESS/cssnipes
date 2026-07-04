@@ -8,20 +8,32 @@ import {
   getLiveMatches,
   getUpcomingMatches,
 } from "@/lib/queries/matches";
-import { getLatestRankings } from "@/lib/queries/rankings";
+import { getLatestRankings, getLatestTeamRatings } from "@/lib/queries/rankings";
 import { getPlayersOverview } from "@/lib/queries/players";
-import { RankingSource } from "@/generated/prisma/client";
+import { RankingSource, RatingSystem } from "@/generated/prisma/client";
 
 export const metadata: Metadata = { title: "CS2 Overview" };
 
 export default async function Cs2HomePage() {
-  const [live, upcoming, recent, rankings, players] = await Promise.all([
+  const [live, upcoming, recent, rankings, elo, players] = await Promise.all([
     getLiveMatches(5),
     getUpcomingMatches(5),
     getCompletedMatches(5),
     getLatestRankings(RankingSource.HLTV),
+    getLatestTeamRatings(RatingSystem.ELO),
     getPlayersOverview(),
   ]);
+
+  // External rankings when available, otherwise internal Elo standings.
+  const topTeams = rankings.rows.length
+    ? {
+        title: "Top teams",
+        rows: rankings.rows.slice(0, 5).map((r) => ({ key: r.id, rank: r.rank, team: r.team })),
+      }
+    : {
+        title: "Top teams (Elo)",
+        rows: elo.rows.slice(0, 5).map((r, i) => ({ key: r.id, rank: i + 1, team: r.team })),
+      };
 
   const topPlayers = players.filter((p) => p.form).slice(0, 5);
 
@@ -55,11 +67,11 @@ export default async function Cs2HomePage() {
         </div>
 
         <div className="space-y-6">
-          <Card title="Top teams" action={<ViewAll href="/cs2/rankings" />}>
-            {rankings.rows.length ? (
+          <Card title={topTeams.title} action={<ViewAll href="/cs2/rankings" />}>
+            {topTeams.rows.length ? (
               <ol className="space-y-2">
-                {rankings.rows.slice(0, 5).map((r) => (
-                  <li key={r.id} className="flex items-center gap-3 text-sm">
+                {topTeams.rows.map((r) => (
+                  <li key={r.key} className="flex items-center gap-3 text-sm">
                     <span className="w-5 font-mono text-muted">{r.rank}</span>
                     <TeamLink slug={r.team.slug} name={r.team.name} />
                   </li>

@@ -21,9 +21,22 @@ cp .env.example .env            # point DATABASE_URL at your Postgres
 docker compose up -d            # or use a local Postgres
 npx prisma migrate deploy
 npx prisma generate
-npm run db:seed                 # deterministic sample data
+npm run db:seed                 # optional: deterministic sample data (no API key needed)
 npm run dev                     # http://localhost:3000
 ```
+
+For real CS2 data instead of the sample seed, set `PANDASCORE_API_KEY` in
+`.env`, then:
+
+```bash
+npm run ingest -- --sport cs2 --provider pandascore
+npm run analytics
+```
+
+Note: don't mix the sample seed with real imports — pick one. The PandaScore
+free tier provides series-level results (teams, players, events, match
+scores); per-map player stat lines require a higher data plan, so map-level
+panels stay empty until such a source is connected.
 
 ## Scripts
 
