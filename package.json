@@ -13,7 +13,8 @@
     "db:generate": "prisma generate",
     "ingest": "tsx scripts/ingest.ts",
     "analytics": "tsx scripts/analytics.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.8.0",
