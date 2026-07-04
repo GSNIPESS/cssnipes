@@ -1,78 +1,192 @@
 # CSSNIPES — CS2 Research Platform
 
-Research-first Counter-Strike 2 analytics: matches, players, teams, rankings,
-per-map statistics, rating models, and comparison tooling on a normalized
-PostgreSQL database. Built to extend to NHL/MLB by adding sport modules.
-No sportsbook content.
+Research-first Counter-Strike 2 analytics: matches, players, teams, events,
+rating models, and comparison tooling on a normalized PostgreSQL database,
+fed by real esports data. No sportsbook content.
 
-Specifications live in [`docs/`](docs/); the phase plan is
+## Goals
+
+- A clean, fast research surface for CS2 results and team/player form.
+- Honest data: everything rendered comes from the database; panels show
+  explicit empty states when a data source doesn't provide a metric.
+- Derived analytics that are deterministic and rebuildable from raw results.
+- An architecture where adding a sport (NHL, MLB) means adding one module,
+  not touching the core.
+
+Project specifications live in [`docs/`](docs/); the original phase plan is
 [`docs/05_DEVELOPMENT_WORKFLOW.md`](docs/05_DEVELOPMENT_WORKFLOW.md).
+Operational procedures live in [`OPERATIONS.md`](OPERATIONS.md).
 
-## Stack
+## Architecture overview
 
-Next.js 16 (App Router, server components) · strict TypeScript · Tailwind v4 ·
-Prisma 7 + PostgreSQL 17 · zod · Recharts · Vitest.
-
-## Getting started
-
-```bash
-npm install
-cp .env.example .env            # point DATABASE_URL at your Postgres
-docker compose up -d            # or use a local Postgres
-npx prisma migrate deploy
-npx prisma generate
-npm run db:seed                 # optional: deterministic sample data (no API key needed)
-npm run dev                     # http://localhost:3000
+```
+PandaScore API ──► ingestion (rate-limited, retrying, cursor-based, audited)
+local JSON     ──►     │  idempotent upserts keyed by provider externalId
+                       ▼
+                 PostgreSQL (normalized: teams, players, rosters, events,
+                       │     matches, maps, stats + ingestion audit)
+                       ▼
+                 analytics (Elo · Glicko-2 · TrueSkill replay, rolling form,
+                       │     map strengths, similarity, ranking snapshots)
+                       ▼
+        typed query layer (src/lib/queries) ──► server-rendered UI (/cs2/*)
+                                            ──► read-only REST API (/api/v1/cs2/*)
 ```
 
-For real CS2 data instead of the sample seed, set `PANDASCORE_API_KEY` in
-`.env`, then:
+Design rules: providers never throw for upstream failures (they return a
+result envelope with health state); derived tables are wiped and rebuilt by
+the analytics job, never hand-edited; every page and endpoint reads through
+the shared query layer.
+
+## Technology stack
+
+Next.js 16 (App Router, server components) · React 19 · strict TypeScript ·
+Tailwind CSS v4 · Prisma 7 (driver adapter) + PostgreSQL 17 · zod · Recharts ·
+Vitest · GitHub Actions CI · Docker (standalone output).
+
+## Folder structure
+
+```
+docs/                 Product/database/analytics specifications
+prisma/               schema.prisma, migrations, seed (dev fixtures)
+public/               Static assets
+scripts/              CLI entrypoints: ingest.ts, analytics.ts
+src/
+  analytics/          Rating math (elo, glicko2, trueskill, gaussian),
+                      recompute jobs, similarity engine
+  app/                Routes: /, /cs2/* pages, /api/v1/cs2/* handlers
+  components/         Reusable UI + chart components
+  ingestion/
+    core/             Provider interface, HTTP client, rate limiter,
+                      runner (cursors + audit), sport registry
+    cs2/              Canonical zod schemas, Prisma mapper, providers
+                      (pandascore, local-json)
+  lib/                prisma singleton, api helpers, format, queries/
+tests/                Vitest unit tests
+```
+
+## Installation
+
+Requirements: Node 22+, PostgreSQL 17 (local `brew install postgresql@17`
+or `docker compose up -d`).
+
+```bash
+git clone https://github.com/GSNIPESS/cssnipes.git && cd cssnipes
+npm install
+cp .env.example .env        # then edit values (see below)
+npx prisma migrate deploy
+npx prisma generate
+```
+
+## Environment variables
+
+| Variable | Required | Purpose |
+| --- | --- | --- |
+| `DATABASE_URL` | yes | PostgreSQL connection string |
+| `PANDASCORE_API_KEY` | for live data | Activates the PandaScore ingestion provider ([get a key](https://developers.pandascore.co)) |
+| `CS2_IMPORT_DIR` | no | Override directory for `local-json` imports (default `data/imports/cs2`) |
+
+`.env` is gitignored; `.env.example` is the template. Prisma loads `.env` via
+`prisma.config.ts`; Next.js and the CLI scripts load it automatically.
+
+## Database setup & migrations
+
+```bash
+npx prisma migrate deploy   # apply committed migrations (prod-safe)
+npx prisma migrate status   # inspect state
+npx prisma studio           # browse data
+npm run db:seed             # OPTIONAL dev fixtures — do not mix with real imports
+```
+
+Schema changes go through `npx prisma migrate dev --name <change>` in
+development; commit the generated folder under `prisma/migrations/`.
+
+## Local development
+
+```bash
+npm run dev                 # http://localhost:3000
+```
+
+Real data: set `PANDASCORE_API_KEY`, then
 
 ```bash
 npm run ingest -- --sport cs2 --provider pandascore
 npm run analytics
 ```
 
-Note: don't mix the sample seed with real imports — pick one. The PandaScore
-free tier provides series-level results (teams, players, events, match
-scores); per-map player stat lines require a higher data plan, so map-level
-panels stay empty until such a source is connected.
+## Ingestion commands
 
-## Scripts
+```bash
+npm run ingest -- --list                                        # registered providers
+npm run ingest -- --sport cs2 --provider pandascore             # full incremental sync
+npm run ingest -- --sport cs2 --provider pandascore --task matches --limit 200
+npm run ingest -- --sport cs2 --provider local-json             # canonical JSON import
+```
 
-| Script | Purpose |
-| --- | --- |
-| `npm run dev` / `build` / `start` | Next.js app |
-| `npm test` | Unit tests (rating math, schemas, rate limiter) |
-| `npm run db:migrate` / `db:seed` / `db:studio` | Database workflows |
-| `npm run ingest -- --list` | Show ingestion providers and configuration state |
-| `npm run ingest -- --sport cs2 --provider pandascore` | Sync from PandaScore (needs `PANDASCORE_API_KEY`) |
-| `npm run ingest -- --sport cs2 --provider local-json` | Import canonical JSON from `data/imports/cs2/` |
-| `npm run analytics` | Recompute Elo / Glicko-2 / TrueSkill, rolling form, map strengths |
+Incremental (cursor per task), idempotent (externalId upserts), audited
+(`IngestionRun` table). Details: [`src/ingestion/README.md`](src/ingestion/README.md).
 
-## Architecture
+## Analytics commands
 
-- `src/app` — routes: `/cs2/*` pages and the read-only REST API under
-  `/api/v1/cs2/*` (matches, players, teams, events, rankings, search,
-  player similarity).
-- `src/lib/queries` — typed Prisma query layer shared by pages and API.
-- `src/ingestion` — sport-agnostic pipeline (rate limiting, retries,
-  incremental cursors, run audit log) + CS2 providers. See
-  [`src/ingestion/README.md`](src/ingestion/README.md).
-- `src/analytics` — pure rating implementations (Elo, Glicko-2, TrueSkill)
-  replayed over completed matches, rolling player form, per-map team
-  strengths, similarity engine, ranking snapshots.
-- `prisma/` — schema and migrations.
+```bash
+npm run analytics
+```
 
-## Deployment
+Replays completed matches through Elo, Glicko-2, and TrueSkill into
+`TeamRating` history; rebuilds rolling player form and per-map team strengths;
+snapshots standings. Deterministic — safe to run after every sync.
 
-1. Provision PostgreSQL and set `DATABASE_URL` (plus `PANDASCORE_API_KEY` to
-   enable live ingestion).
+## Testing
+
+```bash
+npm test                    # vitest: rating math (incl. closed-form checks),
+                            # schema validation, slugify, rate limiter
+npx tsc --noEmit            # strict typecheck
+npx eslint . --max-warnings 0
+```
+
+CI (GitHub Actions) runs migrate + seed against a Postgres service, then
+lint, tests, typecheck, and a production build on every push/PR.
+
+## API overview
+
+Read-only JSON API. Success: `{ data, meta? }` · error:
+`{ error: { code, message } }` · invalid params → 400, missing records → 404.
+Responses send `cache-control: public, s-maxage=30, stale-while-revalidate=60`.
+
+| Endpoint | Params | Returns |
+| --- | --- | --- |
+| `GET /api/v1/cs2/matches` | `status=live\|upcoming\|completed`, `limit` | Match list with teams + event |
+| `GET /api/v1/cs2/matches/:id` | — | Match detail incl. maps + stat lines |
+| `GET /api/v1/cs2/players` | `limit`, `offset` | Players with team + form (paginated) |
+| `GET /api/v1/cs2/players/:slug` | — | Profile + career totals + recent stats |
+| `GET /api/v1/cs2/players/:slug/similar` | — | Form-based similar players |
+| `GET /api/v1/cs2/teams` | `limit`, `offset` | Teams with rank/Elo (paginated) |
+| `GET /api/v1/cs2/teams/:slug` | — | Profile + roster + record + matches |
+| `GET /api/v1/cs2/events` | `limit` | Events with match counts |
+| `GET /api/v1/cs2/events/:slug` | — | Event + its matches |
+| `GET /api/v1/cs2/rankings` | `source=hltv\|valve\|elo\|glicko\|trueskill` | Latest standings per source |
+| `GET /api/v1/cs2/search` | `q` | Players + teams + events matching |
+
+## Deployment overview
+
+1. Provision managed PostgreSQL; set `DATABASE_URL` and `PANDASCORE_API_KEY`
+   in the host's environment.
 2. `npx prisma migrate deploy` against the production database.
-3. Either deploy to a Node host/Vercel, or build the container:
-   `docker build -t cssnipes . && docker run -p 3000:3000 -e DATABASE_URL=... cssnipes`.
-4. Schedule `npm run ingest -- --sport cs2 --provider pandascore` followed by
-   `npm run analytics` (e.g. cron every 15 minutes) to keep data fresh.
+3. Deploy: Vercel (framework preset works as-is) or the included
+   [`Dockerfile`](Dockerfile) (standalone Node server on port 3000).
+4. Schedule `npm run ingest -- --sport cs2 --provider pandascore && npm run analytics`
+   every 15–30 min (external cron/GitHub Actions; Vercel Cron needs HTTP
+   wrappers, planned for v1.1).
+5. Add platform-level rate limiting / WAF in front of the public API.
 
-CI (GitHub Actions) migrates + seeds a Postgres service, then runs lint,
-unit tests, typecheck, and a production build on every push/PR.
+Full runbook: [`OPERATIONS.md`](OPERATIONS.md).
+
+## Future roadmap (v1.1)
+
+- Per-map player statistics (kills, ADR, KAST, utility) from a source that
+  licenses them — the schema, charts, similarity, and rolling-form panels
+  already consume these once present.
+- Enhanced player research pages and historical career analytics.
+- HTTP wrappers for ingest/analytics to enable Vercel Cron.
+- NHL and MLB sport modules on the existing ingestion core.
