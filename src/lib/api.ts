@@ -38,6 +38,20 @@ export function handleApi(
 }
 
 export const limitParam = z.coerce.number().int().min(1).max(100).default(50);
+export const offsetParam = z.coerce.number().int().min(0).default(0);
+
+export const pageParamsSchema = z.object({
+  limit: limitParam,
+  offset: offsetParam,
+});
+
+export function parsePageParams(request: Request) {
+  const params = searchParamsOf(request);
+  return pageParamsSchema.parse({
+    limit: params.get("limit") ?? undefined,
+    offset: params.get("offset") ?? undefined,
+  });
+}
 
 export function searchParamsOf(request: Request): URLSearchParams {
   return new URL(request.url).searchParams;
