@@ -5,8 +5,11 @@ import { getPlayersOverview } from "@/lib/queries/players";
 
 export const metadata: Metadata = { title: "Players" };
 
+const PAGE_CAP = 200;
+
 export default async function PlayersPage() {
-  const players = await getPlayersOverview();
+  const all = await getPlayersOverview();
+  const players = all.slice(0, PAGE_CAP);
 
   if (!players.length) {
     return (
@@ -19,7 +22,9 @@ export default async function PlayersPage() {
 
   return (
     <>
-      <PageTitle subtitle="Active players ordered by recent form (last 10 maps).">
+      <PageTitle
+        subtitle={`Top ${players.length} of ${all.length} active players, ordered by recent form where available. Use Search to find anyone else.`}
+      >
         Players
       </PageTitle>
       <Table>

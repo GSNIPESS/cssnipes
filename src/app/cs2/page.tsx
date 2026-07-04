@@ -98,7 +98,10 @@ export default async function Cs2HomePage() {
                 ))}
               </ol>
             ) : (
-              <EmptyState>No form data.</EmptyState>
+              <EmptyState>
+                Player form needs map-level statistics, which the current data
+                provider plan does not expose.
+              </EmptyState>
             )}
           </Card>
         </div>

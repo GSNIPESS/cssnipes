@@ -1,25 +1,40 @@
 import { prisma } from "@/lib/prisma";
 import { RankingSource, RatingSystem } from "@/generated/prisma/client";
 
-/** Teams with their latest HLTV rank and internal Elo, ordered by rank. */
+/**
+ * Teams with their latest HLTV rank and internal Elo, ordered by rank then
+ * Elo. Bulk queries + in-memory merge — per-team includes don't scale past a
+ * few thousand teams.
+ */
 export async function getTeamsOverview() {
-  const teams = await prisma.team.findMany({
-    where: { disbanded: false },
-    include: {
-      rankings: {
-        where: { source: RankingSource.HLTV },
-        orderBy: { date: "desc" },
-        take: 1,
-      },
-      ratings: {
-        where: { system: RatingSystem.ELO },
-        orderBy: { date: "desc" },
-        take: 1, // per-team latest; ratings are written per match
-      },
-      _count: { select: { rosters: { where: { endDate: null } } } },
-    },
-    orderBy: { name: "asc" },
-  });
+  const [teams, latestElo, latestRank, activeCounts] = await Promise.all([
+    prisma.team.findMany({
+      where: { disbanded: false },
+      select: { id: true, slug: true, name: true, country: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.teamRating.findMany({
+      where: { system: RatingSystem.ELO },
+      orderBy: [{ teamId: "asc" }, { date: "desc" }],
+      distinct: ["teamId"],
+      select: { teamId: true, rating: true },
+    }),
+    prisma.ranking.findMany({
+      where: { source: RankingSource.HLTV },
+      orderBy: [{ teamId: "asc" }, { date: "desc" }],
+      distinct: ["teamId"],
+      select: { teamId: true, rank: true },
+    }),
+    prisma.roster.groupBy({
+      by: ["teamId"],
+      where: { endDate: null },
+      _count: true,
+    }),
+  ]);
+
+  const elo = new Map(latestElo.map((r) => [r.teamId, r.rating]));
+  const rank = new Map(latestRank.map((r) => [r.teamId, r.rank]));
+  const active = new Map(activeCounts.map((r) => [r.teamId, r._count]));
 
   return teams
     .map((t) => ({
@@ -27,9 +42,9 @@ export async function getTeamsOverview() {
       slug: t.slug,
       name: t.name,
       country: t.country,
-      rank: t.rankings[0]?.rank ?? null,
-      elo: t.ratings[0]?.rating ?? null,
-      activePlayers: t._count.rosters,
+      rank: rank.get(t.id) ?? null,
+      elo: elo.get(t.id) ?? null,
+      activePlayers: active.get(t.id) ?? 0,
     }))
     .sort(
       (a, b) =>

@@ -1,0 +1,66 @@
+name: Data sync
+
+# Keeps the production database current: incremental sync every 30 minutes,
+# plus a bounded backfill slice to keep walking any remaining history.
+# Requires repository secrets: DATABASE_URL (production Postgres) and
+# PANDASCORE_API_KEY. The workflow no-ops gracefully if they are absent.
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: data-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PANDASCORE_API_KEY: ${{ secrets.PANDASCORE_API_KEY }}
+
+    steps:
+      - name: Check configuration
+        id: config
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "DATABASE_URL secret not set — skipping sync."
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.config.outputs.configured == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.config.outputs.configured == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.config.outputs.configured == 'true'
+        run: npm ci
+
+      - name: Apply migrations
+        if: steps.config.outputs.configured == 'true'
+        run: npx prisma migrate deploy
+
+      - name: Incremental sync
+        if: steps.config.outputs.configured == 'true'
+        run: npm run ingest -- --sport cs2 --provider pandascore
+
+      - name: Backfill slice (resumes until history is exhausted)
+        if: steps.config.outputs.configured == 'true'
+        run: |
+          for task in teams players events matches; do
+            npm run ingest -- --sport cs2 --provider pandascore-backfill --task "$task" --limit 8000 || true
+          done
+
+      - name: Recompute analytics
+        if: steps.config.outputs.configured == 'true'
+        run: npm run analytics

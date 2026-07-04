@@ -7,6 +7,7 @@ import {
   getPlayerBySlug,
   getPlayerCareerTotals,
   getPlayerRecentStats,
+  getPlayerResearch,
 } from "@/lib/queries/players";
 import { getSimilarPlayers } from "@/analytics";
 import { prisma } from "@/lib/prisma";
@@ -22,10 +23,11 @@ export default async function PlayerProfilePage({
   const player = await getPlayerBySlug(slug);
   if (!player) notFound();
 
-  const [career, recentStats, similar] = await Promise.all([
+  const [career, recentStats, similar, research] = await Promise.all([
     getPlayerCareerTotals(player.id),
     getPlayerRecentStats(player.id, 15),
     getSimilarPlayers(prisma, player.id),
+    getPlayerResearch(player.id),
   ]);
 
   const currentRoster = player.rosters.find((r) => r.endDate === null);
@@ -86,6 +88,39 @@ export default async function PlayerProfilePage({
             </Card>
           )}
 
+          <Card title="Team results while rostered">
+            {research.career && research.career.played > 0 ? (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <Stat
+                  label="Career record"
+                  value={`${research.career.won}W – ${research.career.lost}L`}
+                />
+                <Stat
+                  label="Career win rate"
+                  value={formatPercent(research.career.won / research.career.played)}
+                  highlight={research.career.won / research.career.played >= 0.5}
+                />
+                <Stat
+                  label="Last 90 days"
+                  value={
+                    research.recent && research.recent.played > 0
+                      ? `${research.recent.won}W – ${research.recent.lost}L`
+                      : "—"
+                  }
+                />
+                <Stat label="Events appeared" value={String(research.eventCount)} />
+              </div>
+            ) : (
+              <EmptyState>
+                No recorded team matches during this player&apos;s roster history.
+              </EmptyState>
+            )}
+            <p className="mt-3 text-xs text-muted">
+              Computed from this player&apos;s teams&apos; completed matches during their
+              recorded roster memberships.
+            </p>
+          </Card>
+
           <Card title="Recent maps">
             {recentStats.length ? (
               <Table>
@@ -127,7 +162,10 @@ export default async function PlayerProfilePage({
                 </tbody>
               </Table>
             ) : (
-              <EmptyState>No recorded maps yet.</EmptyState>
+              <EmptyState>
+                Map-level player statistics (kills, ADR, KAST) are not exposed
+                by the current data provider plan — series results only.
+              </EmptyState>
             )}
           </Card>
 
@@ -158,7 +196,10 @@ export default async function PlayerProfilePage({
                 </tbody>
               </Table>
             ) : (
-              <EmptyState>No roster history.</EmptyState>
+              <EmptyState>
+                The data provider has no roster membership on record for this
+                player.
+              </EmptyState>
             )}
           </Card>
         </div>
@@ -174,7 +215,10 @@ export default async function PlayerProfilePage({
                 <FormRow label="Sample" value={`${form.sampleSize} maps`} />
               </dl>
             ) : (
-              <EmptyState>No form data.</EmptyState>
+              <EmptyState>
+                Form ratings need map-level statistics, which the current data
+                provider plan does not expose.
+              </EmptyState>
             )}
           </Card>
 
@@ -196,7 +240,49 @@ export default async function PlayerProfilePage({
                 ))}
               </ul>
             ) : (
-              <EmptyState>Not enough form data yet.</EmptyState>
+              <EmptyState>
+                Similarity needs map-level form data, which the current data
+                provider plan does not expose.
+              </EmptyState>
+            )}
+          </Card>
+
+          <Card title="Event appearances">
+            {research.events.length ? (
+              <ul className="space-y-2 text-sm">
+                {research.events.map((e) => (
+                  <li key={e.id} className="flex items-center justify-between gap-2">
+                    <Link
+                      href={`/cs2/events/${e.slug}`}
+                      className="truncate hover:text-accent"
+                    >
+                      {e.name}
+                    </Link>
+                    <span className="shrink-0 text-xs text-muted">
+                      {formatDate(e.startDate)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyState>
+                No events on record during this player&apos;s roster history.
+              </EmptyState>
+            )}
+          </Card>
+
+          <Card title="Teammates (roster overlap)">
+            {research.teammates.length ? (
+              <ul className="space-y-2 text-sm">
+                {research.teammates.map((m) => (
+                  <li key={m.slug} className="flex items-center justify-between">
+                    <PlayerLink slug={m.slug} nickname={m.nickname} />
+                    <span className="text-xs text-muted">{m.team}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <EmptyState>No overlapping roster memberships recorded.</EmptyState>
             )}
           </Card>
 

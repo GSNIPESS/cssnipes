@@ -97,7 +97,10 @@ export default async function TeamProfilePage({
                 ))}
               </ul>
             ) : (
-              <EmptyState>No active roster.</EmptyState>
+              <EmptyState>
+                The data provider lists no current players for this team
+                (disbanded, inactive, or roster not tracked).
+              </EmptyState>
             )}
           </Card>
 
@@ -126,7 +129,10 @@ export default async function TeamProfilePage({
                 </tbody>
               </Table>
             ) : (
-              <EmptyState>No map data.</EmptyState>
+              <EmptyState>
+                Per-map results are not exposed by the current data provider
+                plan (series scores only).
+              </EmptyState>
             )}
           </Card>
         </div>

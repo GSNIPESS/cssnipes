@@ -6,7 +6,11 @@ import { PandaScoreProvider } from "./providers/pandascore";
 import { cs2RecordSchema, type Cs2Record } from "./schema";
 
 const providers = new Map<string, IngestionProvider<Cs2Record>>();
-for (const provider of [new PandaScoreProvider(), new LocalJsonProvider()]) {
+for (const provider of [
+  new PandaScoreProvider("incremental"),
+  new PandaScoreProvider("backfill"),
+  new LocalJsonProvider(),
+]) {
   providers.set(provider.name, provider);
 }
 

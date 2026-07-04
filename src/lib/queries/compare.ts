@@ -63,17 +63,26 @@ export async function getPlayerComparison(slug: string) {
   };
 }
 
+/**
+ * Dropdown options are capped to entities with an active roster link so the
+ * selects stay usable at full-database scale. Any team/player still works via
+ * the a/b slug URL params — the pickers are a convenience, not a limit.
+ */
+const OPTION_CAP = 500;
+
 export function getCompareOptions() {
   return Promise.all([
     prisma.team.findMany({
-      where: { disbanded: false },
+      where: { disbanded: false, rosters: { some: { endDate: null } } },
       select: { slug: true, name: true },
       orderBy: { name: "asc" },
+      take: OPTION_CAP,
     }),
     prisma.player.findMany({
-      where: { isActive: true },
+      where: { isActive: true, rosters: { some: { endDate: null } } },
       select: { slug: true, nickname: true },
       orderBy: { nickname: "asc" },
+      take: OPTION_CAP,
     }),
   ]);
 }

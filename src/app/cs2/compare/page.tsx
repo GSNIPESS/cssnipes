@@ -84,7 +84,11 @@ export default async function ComparePage({
       </form>
 
       {!ready ? (
-        <EmptyState>Pick two different {type} to compare.</EmptyState>
+        <EmptyState>
+          Pick two different {type} to compare. The dropdowns show currently
+          rostered {type}; anyone else can be compared by putting their slug in
+          the URL (?a=…&amp;b=…) — find slugs via Search.
+        </EmptyState>
       ) : type === "teams" ? (
         <TeamComparison a={a} b={b} />
       ) : (

@@ -4,8 +4,11 @@ import { getTeamsOverview } from "@/lib/queries/teams";
 
 export const metadata: Metadata = { title: "Teams" };
 
+const PAGE_CAP = 200;
+
 export default async function TeamsPage() {
-  const teams = await getTeamsOverview();
+  const all = await getTeamsOverview();
+  const teams = all.slice(0, PAGE_CAP);
 
   if (!teams.length) {
     return (
@@ -18,7 +21,9 @@ export default async function TeamsPage() {
 
   return (
     <>
-      <PageTitle subtitle="Active teams with latest world ranking and internal Elo.">
+      <PageTitle
+        subtitle={`Top ${teams.length} of ${all.length} teams by rating. Use Search to find anyone else.`}
+      >
         Teams
       </PageTitle>
       <Table>

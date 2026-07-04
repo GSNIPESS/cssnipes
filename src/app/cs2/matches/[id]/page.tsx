@@ -64,7 +64,9 @@ export default async function MatchDetailPage({
 
       {match.maps.length === 0 && (
         <p className="text-center text-sm text-muted">
-          Map data will appear once the match starts.
+          {match.status === "SCHEDULED"
+            ? "Map picks will appear once available."
+            : "Per-map details are not exposed by the current data provider plan — series score only."}
         </p>
       )}
 

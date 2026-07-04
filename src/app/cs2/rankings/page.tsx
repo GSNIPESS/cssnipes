@@ -72,7 +72,11 @@ export default async function RankingsPage() {
               </tbody>
             </Table>
           ) : (
-            <EmptyState>No ranking snapshots yet.</EmptyState>
+            <EmptyState>
+              External world rankings (HLTV/Valve) are not exposed by the
+              current data provider. The model ratings alongside are computed
+              internally from match results.
+            </EmptyState>
           )}
         </Card>
 
