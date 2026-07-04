@@ -44,7 +44,7 @@ export function getTeamBySlug(slug: string) {
         orderBy: { startDate: "asc" },
       },
       rankings: { orderBy: { date: "desc" }, take: 5 },
-      ratings: { orderBy: { date: "desc" }, take: 5 },
+      ratings: { orderBy: { date: "desc" }, take: 60 },
       mapStrengths: {
         orderBy: { asOfDate: "desc" },
         include: { map: true },

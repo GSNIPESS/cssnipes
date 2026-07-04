@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { TimeSeriesChart } from "@/components/charts/time-series-chart";
 import { Card, EmptyState, Table, Td, Th, TeamLink } from "@/components/ui";
 import { formatDate, formatDecimal } from "@/lib/format";
 import {
@@ -68,6 +69,18 @@ export default async function PlayerProfilePage({
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
+          {recentStats.length >= 2 && (
+            <Card title="Form trend (rating per map, oldest → newest)">
+              <TimeSeriesChart
+                points={[...recentStats].reverse().map((s, i) => ({
+                  label: `${i + 1}. ${s.matchMap.map.displayName}`,
+                  value: s.rating,
+                }))}
+                referenceValue={1}
+              />
+            </Card>
+          )}
+
           <Card title="Recent maps">
             {recentStats.length ? (
               <Table>

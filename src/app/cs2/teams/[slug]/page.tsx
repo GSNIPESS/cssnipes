@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { BarRatioChart } from "@/components/charts/bar-ratio-chart";
+import { TimeSeriesChart } from "@/components/charts/time-series-chart";
 import { Card, EmptyState, PlayerLink, Table, Td, Th } from "@/components/ui";
 import { MatchList } from "@/components/match-row";
 import { formatDate, formatPercent } from "@/lib/format";
@@ -52,6 +54,28 @@ export default async function TeamProfilePage({
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
+          {team.ratings.length >= 2 && (
+            <Card title="Elo history">
+              <TimeSeriesChart
+                points={[...team.ratings]
+                  .filter((r) => r.system === "ELO")
+                  .reverse()
+                  .map((r) => ({ label: formatDate(r.date), value: Math.round(r.rating) }))}
+              />
+            </Card>
+          )}
+
+          {mapStrengths.length >= 2 && (
+            <Card title="Map win rates">
+              <BarRatioChart
+                points={mapStrengths.map((ms) => ({
+                  label: ms.map.displayName,
+                  ratio: ms.winRate,
+                }))}
+              />
+            </Card>
+          )}
+
           <Card title="Recent matches">
             {recentMatches.length ? (
               <MatchList matches={recentMatches} />
