@@ -68,12 +68,20 @@ enum SnapshotEntity {
   RANKING
 }
 
+enum IngestionRunStatus {
+  RUNNING
+  SUCCEEDED
+  PARTIAL
+  FAILED
+}
+
 // ---------- Core entities ----------
 
 model Team {
-  id        String    @id @default(cuid())
-  slug      String    @unique
-  name      String
+  id         String    @id @default(cuid())
+  externalId String?   @unique // upstream source id for incremental updates
+  slug       String    @unique
+  name       String
   country   String? // ISO 3166-1 alpha-2
   logoUrl   String?
   foundedAt DateTime?
@@ -100,9 +108,10 @@ model Team {
 }
 
 model Player {
-  id        String     @id @default(cuid())
-  slug      String     @unique
-  nickname  String
+  id         String     @id @default(cuid())
+  externalId String?    @unique // upstream source id for incremental updates
+  slug       String     @unique
+  nickname   String
   firstName String?
   lastName  String?
   country   String?
@@ -141,9 +150,10 @@ model Roster {
 }
 
 model Event {
-  id        String    @id @default(cuid())
-  slug      String    @unique
-  name      String
+  id         String    @id @default(cuid())
+  externalId String?   @unique // upstream source id for incremental updates
+  slug       String    @unique
+  name       String
   tier      EventTier @default(B)
   prizePool Int? // USD
   location  String?
@@ -348,6 +358,38 @@ model TeamMapStrength {
 
   @@unique([teamId, mapId, asOfDate])
   @@index([mapId, asOfDate])
+}
+
+// ---------- Ingestion state ----------
+
+/// Incremental-update cursor per (sport, provider, task).
+model IngestionSyncState {
+  id            String    @id @default(cuid())
+  sport         String
+  provider      String
+  task          String
+  cursor        String?
+  lastSuccessAt DateTime?
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([sport, provider, task])
+}
+
+/// Audit log of ingestion runs.
+model IngestionRun {
+  id            String             @id @default(cuid())
+  sport         String
+  provider      String
+  task          String
+  status        IngestionRunStatus @default(RUNNING)
+  startedAt     DateTime           @default(now())
+  finishedAt    DateTime?
+  itemsFetched  Int                @default(0)
+  itemsUpserted Int                @default(0)
+  warnings      Json?
+  error         String?
+
+  @@index([sport, provider, startedAt])
 }
 
 /// Rolling-window player form (e.g. last 10 maps / last 3 months).
