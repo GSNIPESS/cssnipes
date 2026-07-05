@@ -1,11 +1,13 @@
+import Link from "next/link";
 import type { Metadata } from "next";
-import { EmptyState, PageTitle, Table, Td, Th } from "@/components/ui";
-import { formatDecimal, formatPercent } from "@/lib/format";
+import { Card, EmptyState, PageTitle, PlayerLink, Table, Td, Th } from "@/components/ui";
+import { formatDate, formatDecimal, formatPercent } from "@/lib/format";
 import {
   getCompareOptions,
   getPlayerComparison,
   getTeamComparison,
 } from "@/lib/queries/compare";
+import { getHeadToHead, getPlayerSharedHistory } from "@/lib/queries/research";
 
 export const metadata: Metadata = { title: "Compare" };
 
@@ -108,7 +110,14 @@ async function TeamComparison({ a, b }: { a: string; b: string }) {
   ]);
   if (!left || !right) return <EmptyState>Team not found.</EmptyState>;
 
+  const h2h = await getHeadToHead(left.id, right.id);
+
   const rows: [string, string, string][] = [
+    [
+      "Head-to-head",
+      `${h2h.winsA} wins`,
+      `${h2h.winsB} wins`,
+    ],
     ["World rank", fmtRank(left.rank), fmtRank(right.rank)],
     [
       "Elo",
@@ -132,7 +141,41 @@ async function TeamComparison({ a, b }: { a: string; b: string }) {
     ],
   ];
 
-  return <CompareTable leftName={left.name} rightName={right.name} rows={rows} />;
+  return (
+    <div className="space-y-6">
+      <CompareTable leftName={left.name} rightName={right.name} rows={rows} />
+
+      <Card
+        title={`Head-to-head meetings (${h2h.meetings})`}
+        action={
+          h2h.meetings > 0 ? (
+            <span className="font-mono text-xs text-muted">
+              {h2h.winsA}–{h2h.winsB}
+            </span>
+          ) : undefined
+        }
+      >
+        {h2h.recent.length ? (
+          <ul className="space-y-2 text-sm">
+            {h2h.recent.map((m) => (
+              <li key={m.matchId} className="flex items-center justify-between gap-2">
+                <Link href={`/cs2/matches/${m.matchId}`} className="truncate hover:text-accent">
+                  <span className={m.wonByA ? "text-win" : "text-loss"}>
+                    {m.wonByA ? left.name : right.name}
+                  </span>{" "}
+                  <span className="font-mono">{m.score}</span>
+                  <span className="ml-2 text-xs text-muted">{m.event.name}</span>
+                </Link>
+                <span className="shrink-0 text-xs text-muted">{formatDate(m.date)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <EmptyState>These teams have never met in recorded matches.</EmptyState>
+        )}
+      </Card>
+    </div>
+  );
 }
 
 async function PlayerComparison({ a, b }: { a: string; b: string }) {
@@ -141,6 +184,8 @@ async function PlayerComparison({ a, b }: { a: string; b: string }) {
     getPlayerComparison(b),
   ]);
   if (!left || !right) return <EmptyState>Player not found.</EmptyState>;
+
+  const shared = await getPlayerSharedHistory(left.id, right.id);
 
   const fmtForm = (p: typeof left) =>
     p.form ? formatDecimal(p.form.rating) : "—";
@@ -172,7 +217,48 @@ async function PlayerComparison({ a, b }: { a: string; b: string }) {
   ];
 
   return (
-    <CompareTable leftName={left.nickname} rightName={right.nickname} rows={rows} />
+    <div className="space-y-6">
+      <CompareTable leftName={left.nickname} rightName={right.nickname} rows={rows} />
+
+      <Card title="Shared history">
+        <div className="grid gap-6 sm:grid-cols-2">
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+              Teams both played for
+            </h3>
+            {shared.sharedTeams.length ? (
+              <ul className="space-y-1.5 text-sm">
+                {shared.sharedTeams.map((t) => (
+                  <li key={t.slug}>
+                    <Link href={`/cs2/teams/${t.slug}`} className="hover:text-accent">
+                      {t.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted">No shared teams on record.</p>
+            )}
+          </div>
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+              Shared teammates
+            </h3>
+            {shared.sharedTeammates.length ? (
+              <ul className="space-y-1.5 text-sm">
+                {shared.sharedTeammates.map((p) => (
+                  <li key={p.slug}>
+                    <PlayerLink slug={p.slug} nickname={p.nickname} />
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted">No shared teammates on record.</p>
+            )}
+          </div>
+        </div>
+      </Card>
+    </div>
   );
 }
 

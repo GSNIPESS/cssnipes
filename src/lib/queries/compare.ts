@@ -27,6 +27,7 @@ export async function getTeamComparison(slug: string) {
 
   const record = await getTeamRecord(team.id);
   return {
+    id: team.id,
     slug: team.slug,
     name: team.name,
     country: team.country,
@@ -53,6 +54,7 @@ export async function getPlayerComparison(slug: string) {
 
   const career = await getPlayerCareerTotals(player.id);
   return {
+    id: player.id,
     slug: player.slug,
     nickname: player.nickname,
     country: player.country,

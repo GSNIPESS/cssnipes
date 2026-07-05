@@ -18,6 +18,8 @@ import {
 import { getSimilarPlayers } from "@/analytics";
 import { projectMatch } from "@/analytics/projection";
 import { ProbabilityBar } from "@/components/probability-bar";
+import { ResearchSplitsSections } from "@/components/research-sections";
+import { getPlayerResearchSplits } from "@/lib/queries/research";
 import { prisma } from "@/lib/prisma";
 
 export default async function PlayerProfilePage({
@@ -246,11 +248,12 @@ async function OverviewTab({
 }: {
   player: NonNullable<Awaited<ReturnType<typeof getPlayerBySlug>>>;
 }) {
-  const [career, recentStats, similar, research] = await Promise.all([
+  const [career, recentStats, similar, research, splits] = await Promise.all([
     getPlayerCareerTotals(player.id),
     getPlayerRecentStats(player.id, 15),
     getSimilarPlayers(prisma, player.id),
     getPlayerResearch(player.id),
+    getPlayerResearchSplits(player.id),
   ]);
   const form = player.rollingStats[0];
 
@@ -362,6 +365,8 @@ async function OverviewTab({
               </EmptyState>
             )}
           </Card>
+
+          {splits && <ResearchSplitsSections splits={splits} subject="player" />}
 
           <Card title="Team history">
             {player.rosters.length ? (

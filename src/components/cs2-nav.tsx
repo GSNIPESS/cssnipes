@@ -18,7 +18,10 @@ export function Cs2Nav() {
   const pathname = usePathname();
 
   return (
-    <nav className="-mx-4 mb-8 overflow-x-auto border-b border-edge px-4 sm:-mx-6 sm:px-6">
+    <nav
+      aria-label="CS2 sections"
+      className="-mx-4 mb-8 overflow-x-auto border-b border-edge px-4 sm:-mx-6 sm:px-6"
+    >
       <div className="flex gap-1 text-sm">
         {SECTIONS.map((s) => {
           const active = s.exact

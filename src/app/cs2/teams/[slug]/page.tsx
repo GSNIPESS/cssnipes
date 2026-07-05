@@ -1,7 +1,9 @@
 import { notFound } from "next/navigation";
 import { BarRatioChart } from "@/components/charts/bar-ratio-chart";
 import { TimeSeriesChart } from "@/components/charts/time-series-chart";
+import { ResearchSplitsSections } from "@/components/research-sections";
 import { Card, EmptyState, PlayerLink, Table, Td, Th } from "@/components/ui";
+import { getRosterStability, getTeamResearchSplits } from "@/lib/queries/research";
 import { MatchList } from "@/components/match-row";
 import { formatDate, formatPercent } from "@/lib/format";
 import { getTeamBySlug, getTeamRecord } from "@/lib/queries/teams";
@@ -16,9 +18,11 @@ export default async function TeamProfilePage({
   const team = await getTeamBySlug(slug);
   if (!team) notFound();
 
-  const [record, recentMatches] = await Promise.all([
+  const [record, recentMatches, splits, stability] = await Promise.all([
     getTeamRecord(team.id),
     getTeamRecentMatches(team.id, 10),
+    getTeamResearchSplits(team.id),
+    getRosterStability(team.id),
   ]);
 
   const latestRanking = team.rankings[0];
@@ -76,6 +80,8 @@ export default async function TeamProfilePage({
             </Card>
           )}
 
+          <ResearchSplitsSections splits={splits} subject="team" />
+
           <Card title="Recent matches">
             {recentMatches.length ? (
               <MatchList matches={recentMatches} />
@@ -102,6 +108,35 @@ export default async function TeamProfilePage({
                 (disbanded, inactive, or roster not tracked).
               </EmptyState>
             )}
+          </Card>
+
+          <Card title="Roster stability">
+            {stability ? (
+              <dl className="space-y-2 text-sm">
+                <div className="flex justify-between">
+                  <dt className="text-muted">Lineup changes / year</dt>
+                  <dd className="font-mono">{stability.changesPerYear.toFixed(1)}</dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-muted">Avg current tenure</dt>
+                  <dd className="font-mono">
+                    {stability.avgTenureDays !== null
+                      ? `${Math.round(stability.avgTenureDays)}d`
+                      : "—"}
+                  </dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-muted">Roster tracked since</dt>
+                  <dd className="font-mono">{formatDate(stability.observedFrom)}</dd>
+                </div>
+              </dl>
+            ) : (
+              <EmptyState>No roster history tracked for this team.</EmptyState>
+            )}
+            <p className="mt-3 text-xs text-muted">
+              Based on observed membership changes since our tracking began —
+              the provider does not expose historical join dates.
+            </p>
           </Card>
 
           <Card title="Map strengths">

@@ -28,11 +28,13 @@ export async function recomputeAnalytics(
   // Snapshot the post-recompute Elo standings (top 100; DISTINCT ON keeps
   // the latest-per-team resolution in the database).
   const latestElo = await prisma.$queryRaw<Array<{ slug: string; rating: number }>>`
-    SELECT t.slug, x.rating FROM (
-      SELECT DISTINCT ON ("teamId") "teamId", rating
-      FROM "TeamRating" WHERE system = 'ELO'
-      ORDER BY "teamId", date DESC
-    ) x JOIN "Team" t ON t.id = x."teamId"
+    SELECT t.slug, x.rating
+    FROM "Team" t
+    CROSS JOIN LATERAL (
+      SELECT rating FROM "TeamRating" tr
+      WHERE tr."teamId" = t.id AND tr.system = 'ELO'
+      ORDER BY tr.date DESC LIMIT 1
+    ) x
     ORDER BY x.rating DESC LIMIT 100`;
   if (latestElo.length > 0) {
     const standings = latestElo.map((r, i) => ({

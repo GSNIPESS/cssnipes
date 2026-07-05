@@ -14,9 +14,13 @@ export async function getTeamsOverview() {
       orderBy: { name: "asc" },
     }),
     prisma.$queryRaw<Array<{ teamId: string; rating: number }>>`
-      SELECT DISTINCT ON ("teamId") "teamId", rating
-      FROM "TeamRating" WHERE system = 'ELO'
-      ORDER BY "teamId", date DESC`,
+      SELECT t.id AS "teamId", x.rating
+      FROM "Team" t
+      CROSS JOIN LATERAL (
+        SELECT rating FROM "TeamRating" tr
+        WHERE tr."teamId" = t.id AND tr.system = 'ELO'
+        ORDER BY tr.date DESC LIMIT 1
+      ) x`,
     prisma.ranking.findMany({
       where: { source: RankingSource.HLTV },
       orderBy: [{ teamId: "asc" }, { date: "desc" }],

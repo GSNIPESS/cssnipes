@@ -21,7 +21,7 @@ export function SiteHeader() {
         >
           CSSNIPES
         </Link>
-        <nav className="flex items-center gap-1 text-sm">
+        <nav aria-label="Sports" className="flex items-center gap-1 text-sm">
           {SPORTS.map((sport) =>
             sport.enabled ? (
               <Link

@@ -6,12 +6,25 @@ import { RankingSource, RatingSystem } from "@/generated/prisma/client";
 
 export const metadata: Metadata = { title: "Rankings" };
 
-export default async function RankingsPage() {
+export default async function RankingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string }>;
+}) {
+  // Historical snapshot: ?date=YYYY-MM-DD shows the rating table as it stood
+  // at end of that day, resolved from stored per-match rating history.
+  const { date } = await searchParams;
+  const parsed = date ? new Date(`${date}T23:59:59Z`) : undefined;
+  const asOf =
+    parsed && !Number.isNaN(parsed.getTime()) && parsed < new Date()
+      ? parsed
+      : undefined;
+
   const [hltv, elo, glicko, trueskill] = await Promise.all([
     getLatestRankings(RankingSource.HLTV),
-    getLatestTeamRatings(RatingSystem.ELO),
-    getLatestTeamRatings(RatingSystem.GLICKO),
-    getLatestTeamRatings(RatingSystem.TRUESKILL),
+    getLatestTeamRatings(RatingSystem.ELO, asOf),
+    getLatestTeamRatings(RatingSystem.GLICKO, asOf),
+    getLatestTeamRatings(RatingSystem.TRUESKILL, asOf),
   ]);
 
   // Merge the three systems into one row per team, ordered by Elo.
@@ -38,9 +51,45 @@ export default async function RankingsPage() {
 
   return (
     <>
-      <PageTitle subtitle="External world ranking and internal Elo, latest snapshots.">
+      <PageTitle
+        subtitle={
+          asOf
+            ? `Historical snapshot — ratings as of ${formatDate(asOf)}.`
+            : "External world ranking and internal model ratings, latest state."
+        }
+      >
         Rankings
       </PageTitle>
+
+      <form action="/cs2/rankings" method="get" className="mb-6 flex flex-wrap items-end gap-2">
+        <label className="text-sm">
+          <span className="mb-1 block text-xs uppercase tracking-wider text-muted">
+            View any date (2016 → today)
+          </span>
+          <input
+            type="date"
+            name="date"
+            defaultValue={date ?? ""}
+            min="2016-01-13"
+            max={new Date().toISOString().slice(0, 10)}
+            className="rounded-md border border-edge bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+          />
+        </label>
+        <button
+          type="submit"
+          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-canvas transition-colors hover:bg-accent-dim"
+        >
+          View snapshot
+        </button>
+        {asOf && (
+          <a
+            href="/cs2/rankings"
+            className="rounded-md border border-edge px-4 py-2 text-sm text-muted transition-colors hover:border-accent"
+          >
+            Back to latest
+          </a>
+        )}
+      </form>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card
