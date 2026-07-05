@@ -15,7 +15,10 @@ export default async function PlayersPage() {
     return (
       <>
         <PageTitle>Players</PageTitle>
-        <EmptyState>No players in the database yet.</EmptyState>
+        <EmptyState>
+          No players in the database yet — run an ingestion sync
+          (see OPERATIONS.md) to populate it.
+        </EmptyState>
       </>
     );
   }

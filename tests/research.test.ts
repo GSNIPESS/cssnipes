@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { computeResearchSplits, type ResearchMatch } from "@/lib/research";
+import {
+  computeResearchSplits,
+  deriveInsights,
+  type ResearchMatch,
+} from "@/lib/research";
 
 let seq = 0;
 const match = (
@@ -86,5 +90,34 @@ describe("research splits", () => {
     expect(splits.currentStreak).toBeNull();
     expect(splits.strengthOfSchedule).toBeNull();
     expect(splits.momentum).toBeNull();
+  });
+});
+
+describe("derived insights", () => {
+  it("states streaks and top-10 records factually", () => {
+    const splits = computeResearchSplits([
+      ...Array.from({ length: 5 }, () =>
+        match(true, { opponent: { id: "t", slug: "t", name: "T", elo: 2300, rank: 4 } })
+      ),
+      match(false),
+    ]);
+    const insights = deriveInsights(splits);
+    expect(insights.some((s) => s.includes("5-match winning streak"))).toBe(true);
+    expect(insights.some((s) => s.includes("5–0 against current Top-10"))).toBe(true);
+  });
+
+  it("stays quiet without enough evidence", () => {
+    const splits = computeResearchSplits([match(true), match(false)]);
+    expect(deriveInsights(splits)).toEqual([]);
+  });
+
+  it("caps output at four insights", () => {
+    const lan = Array.from({ length: 12 }, () =>
+      match(true, { isLan: true, tier: "S", opponent: { id: "t", slug: "t", name: "T", elo: 2300, rank: 4 } })
+    );
+    const online = Array.from({ length: 12 }, () => match(false, { tier: "B" }));
+    const insights = deriveInsights(computeResearchSplits([...lan, ...online]));
+    expect(insights.length).toBeLessThanOrEqual(4);
+    expect(insights.length).toBeGreaterThan(0);
   });
 });

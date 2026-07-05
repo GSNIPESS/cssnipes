@@ -14,7 +14,10 @@ export default async function TeamsPage() {
     return (
       <>
         <PageTitle>Teams</PageTitle>
-        <EmptyState>No teams in the database yet.</EmptyState>
+        <EmptyState>
+          No teams in the database yet — run an ingestion sync
+          (see OPERATIONS.md) to populate it.
+        </EmptyState>
       </>
     );
   }

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Card, EmptyState, Table, Td, Th } from "@/components/ui";
 import { formatDate, formatPercent } from "@/lib/format";
-import type { Record_, ResearchSplits } from "@/lib/research";
+import { deriveInsights, type Record_, type ResearchSplits } from "@/lib/research";
 
 /**
  * Shared research sections rendered on player and team profiles from a
@@ -24,8 +24,26 @@ export function ResearchSplitsSections({
   splits: ResearchSplits;
   subject: "player" | "team";
 }) {
+  const insights = deriveInsights(splits);
   return (
     <>
+      {insights.length > 0 && (
+        <Card title="Insights">
+          <ul className="space-y-2">
+            {insights.map((line) => (
+              <li key={line} className="flex items-baseline gap-2 text-sm">
+                <span aria-hidden className="text-accent">▸</span>
+                {line}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-3 text-xs text-muted">
+            Generated from the records below — every statement is verifiable
+            against this page.
+          </p>
+        </Card>
+      )}
+
       <Card title="Career splits by year">
         {splits.byYear.length ? (
           <Table>

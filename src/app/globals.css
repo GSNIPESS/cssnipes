@@ -34,6 +34,42 @@ body {
   border-radius: 4px;
 }
 
+/* ---------- CSSNIPES design system: terminal-grade surfaces ---------- */
+
+/* Cards: subtle vertical gradient + inner top highlight, one shared look. */
+section {
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.015), transparent 40%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.03);
+}
+
+/* Elegant dividers inside cards. */
+section header {
+  background-image: linear-gradient(
+    90deg,
+    transparent,
+    rgb(255 255 255 / 0.02),
+    transparent
+  );
+}
+
+/* Live indicator glow — the one deliberate "terminal" accent. */
+.text-live,
+[class*="text-live"] {
+  text-shadow: 0 0 12px rgb(239 68 68 / 0.35);
+}
+
+/* Table polish: consistent row hover. */
+tbody tr {
+  transition: background-color 0.12s ease;
+}
+tbody tr:hover {
+  background-color: rgb(255 255 255 / 0.02);
+}
+
+kbd {
+  box-shadow: inset 0 -1px 0 rgb(255 255 255 / 0.06);
+}
+
 /* Tasteful motion — disabled entirely under prefers-reduced-motion. */
 @media (prefers-reduced-motion: no-preference) {
   main {
@@ -44,6 +80,26 @@ body {
     from {
       opacity: 0;
       transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* Gentle staggered reveal for the first cards on a page. */
+  main section {
+    animation: card-enter 0.35s ease-out backwards;
+  }
+  main section:nth-of-type(1) { animation-delay: 0.03s; }
+  main section:nth-of-type(2) { animation-delay: 0.07s; }
+  main section:nth-of-type(3) { animation-delay: 0.11s; }
+  main section:nth-of-type(4) { animation-delay: 0.15s; }
+
+  @keyframes card-enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
     }
     to {
       opacity: 1;
@@ -62,6 +118,31 @@ body {
   a[href^="/cs2/matches/"]:hover {
     transform: translateY(-1px);
     box-shadow: 0 4px 16px rgb(0 0 0 / 0.35);
+  }
+
+  button {
+    transition:
+      background-color 0.12s ease,
+      border-color 0.12s ease,
+      transform 0.08s ease;
+  }
+  button:active {
+    transform: scale(0.98);
+  }
+
+  /* Command palette entrance. */
+  [role="dialog"] {
+    animation: palette-enter 0.16s ease-out;
+  }
+  @keyframes palette-enter {
+    from {
+      opacity: 0;
+      transform: translateY(-6px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 
   .animate-pulse {

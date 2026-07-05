@@ -513,7 +513,10 @@ async function OverviewTab({
                 ))}
               </ul>
             ) : (
-              <EmptyState>No transfer history.</EmptyState>
+              <EmptyState>
+                No transfers on record — the provider announces moves via
+                current-team changes, which appear in Team history above.
+              </EmptyState>
             )}
           </Card>
         </div>

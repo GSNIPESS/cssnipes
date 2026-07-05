@@ -100,7 +100,9 @@ export default async function TeamProfilePage({
             {recentMatches.length ? (
               <MatchList matches={recentMatches} />
             ) : (
-              <EmptyState>No matches recorded.</EmptyState>
+              <EmptyState>
+                The data provider has no matches on record for this team.
+              </EmptyState>
             )}
           </Card>
         </div>

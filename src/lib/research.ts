@@ -155,3 +155,62 @@ export function computeResearchSplits(matches: ResearchMatch[]): ResearchSplits 
 }
 
 const TIER_ORDER = ["S", "A", "B", "C", "QUALIFIER"];
+
+/**
+ * Short factual observations derived only from the splits — every sentence
+ * is directly verifiable against the numbers rendered alongside it.
+ */
+export function deriveInsights(splits: ResearchSplits): string[] {
+  const out: string[] = [];
+  const wr = (r: Record_) => r.won / r.played;
+  const pct = (x: number) => `${Math.round(x * 100)}%`;
+
+  if (splits.currentStreak && splits.currentStreak.length >= 3) {
+    out.push(
+      `On a ${splits.currentStreak.length}-match ${
+        splits.currentStreak.kind === "W" ? "winning" : "losing"
+      } streak.`
+    );
+  }
+
+  if (splits.lan.played >= 10 && splits.online.played >= 10) {
+    const gap = wr(splits.lan) - wr(splits.online);
+    if (Math.abs(gap) >= 0.08) {
+      out.push(
+        gap > 0
+          ? `Stronger on LAN: ${pct(wr(splits.lan))} vs ${pct(wr(splits.online))} online.`
+          : `Stronger online: ${pct(wr(splits.online))} vs ${pct(wr(splits.lan))} on LAN.`
+      );
+    }
+  }
+
+  const tiers = splits.byTier.filter((t) => t.played >= 10);
+  if (tiers.length >= 2) {
+    const best = tiers.reduce((a, b) => (wr(b) > wr(a) ? b : a));
+    out.push(
+      `Best results at ${
+        best.tier === "QUALIFIER" ? "qualifiers" : `${best.tier}-tier events`
+      }: ${pct(wr(best))} over ${best.played} matches.`
+    );
+  }
+
+  if (splits.vsTop10.played >= 5) {
+    out.push(
+      `${splits.vsTop10.won}–${splits.vsTop10.lost} against current Top-10 opposition.`
+    );
+  }
+
+  if (splits.momentum !== null && Math.abs(splits.momentum) >= 0.4) {
+    out.push(
+      splits.momentum > 0
+        ? `Form trending up: win rate ${pct(splits.momentum)} higher over the last 5 than the previous 5.`
+        : `Form trending down: win rate ${pct(-splits.momentum)} lower over the last 5 than the previous 5.`
+    );
+  }
+
+  if (splits.longestWinStreak >= 8) {
+    out.push(`Longest recorded run: ${splits.longestWinStreak} straight wins.`);
+  }
+
+  return out.slice(0, 4);
+}
