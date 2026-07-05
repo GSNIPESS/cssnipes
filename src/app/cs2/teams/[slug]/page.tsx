@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { prisma } from "@/lib/prisma";
 import { BarRatioChart } from "@/components/charts/bar-ratio-chart";
 import { TimeSeriesChart } from "@/components/charts/time-series-chart";
 import { ResearchSplitsSections } from "@/components/research-sections";
@@ -8,6 +9,19 @@ import { MatchList } from "@/components/match-row";
 import { formatDate, formatPercent } from "@/lib/format";
 import { getTeamBySlug, getTeamRecord } from "@/lib/queries/teams";
 import { getTeamRecentMatches } from "@/lib/queries/matches";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const team = await prisma.team.findUnique({
+    where: { slug },
+    select: { name: true },
+  });
+  return { title: team ? `${team.name} — Team` : "Team" };
+}
 
 export default async function TeamProfilePage({
   params,

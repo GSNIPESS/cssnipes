@@ -47,12 +47,17 @@ export function SiteHeader() {
           )}
         </nav>
         <div className="ml-auto">
-          <Link
-            href="/cs2/search"
-            className="rounded border border-edge px-3 py-1.5 text-sm text-muted transition-colors hover:border-accent-dim hover:text-fg"
+          <button
+            type="button"
+            onClick={() => window.dispatchEvent(new Event("cssnipes:open-palette"))}
+            className="flex items-center gap-2 rounded border border-edge px-3 py-1.5 text-sm text-muted transition-colors hover:border-accent-dim hover:text-fg"
+            aria-label="Open command palette"
           >
             Search…
-          </Link>
+            <kbd className="hidden rounded border border-edge bg-surface-2 px-1 font-mono text-[10px] sm:inline">
+              ⌘K
+            </kbd>
+          </button>
         </div>
       </div>
     </header>

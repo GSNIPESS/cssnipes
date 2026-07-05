@@ -9,6 +9,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { ChartExport } from "./export-png";
 
 export type TimeSeriesPoint = {
   label: string;
@@ -24,14 +25,17 @@ export function TimeSeriesChart({
   yDomain,
   referenceValue,
   height = 220,
+  exportName = "cssnipes-chart",
 }: {
   points: TimeSeriesPoint[];
   yDomain?: [number, number];
   referenceValue?: number;
   height?: number;
+  exportName?: string;
 }) {
   return (
-    <div style={{ height }}>
+    <ChartExport name={exportName}>
+      <div style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={points} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
           <CartesianGrid stroke="#242c38" strokeDasharray="3 3" vertical={false} />
@@ -82,6 +86,7 @@ export function TimeSeriesChart({
           />
         </LineChart>
       </ResponsiveContainer>
-    </div>
+      </div>
+    </ChartExport>
   );
 }

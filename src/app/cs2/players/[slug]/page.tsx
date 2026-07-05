@@ -22,6 +22,19 @@ import { ResearchSplitsSections } from "@/components/research-sections";
 import { getPlayerResearchSplits } from "@/lib/queries/research";
 import { prisma } from "@/lib/prisma";
 
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const player = await prisma.player.findUnique({
+    where: { slug },
+    select: { nickname: true },
+  });
+  return { title: player ? `${player.nickname} — Player` : "Player" };
+}
+
 export default async function PlayerProfilePage({
   params,
   searchParams,

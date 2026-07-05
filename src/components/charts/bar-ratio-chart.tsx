@@ -10,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { ChartExport } from "./export-png";
 
 export type BarRatioPoint = {
   label: string;
@@ -21,13 +22,16 @@ export type BarRatioPoint = {
 export function BarRatioChart({
   points,
   height = 220,
+  exportName = "cssnipes-chart",
 }: {
   points: BarRatioPoint[];
   height?: number;
+  exportName?: string;
 }) {
   const data = points.map((p) => ({ ...p, percent: p.ratio * 100 }));
   return (
-    <div style={{ height }}>
+    <ChartExport name={exportName}>
+      <div style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
           <CartesianGrid stroke="#242c38" strokeDasharray="3 3" vertical={false} />
@@ -64,6 +68,7 @@ export function BarRatioChart({
           </Bar>
         </BarChart>
       </ResponsiveContainer>
-    </div>
+      </div>
+    </ChartExport>
   );
 }
