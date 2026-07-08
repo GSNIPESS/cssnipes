@@ -14,9 +14,14 @@ omitted and the UI says why.
 - **TrueSkill** (`trueskill.ts`) — head-to-head update (β = 25/6, dynamics
   τ = 25/300), no draws. Displayed μ, stored σ.
 
-## Projection Model v1 (`projection.ts`)
+## Projection Model v2 (`projection.ts` + `montecarlo.ts`)
 
-`P(A wins) = clamp(ratingBlend + formAdj + mapAdj, 0.03, 0.97)`
+Two stages: a deterministic **point estimate** of per-map win probability
+feeds a seeded **100,000-draw Monte Carlo** series simulation.
+
+### Stage 1 — point estimate (per-map win probability for A)
+
+`pointEstimateA = clamp(ratingBlend + formAdj + mapAdj, 0.03, 0.97)`
 
 - **ratingBlend** — 0.4·P_elo + 0.3·P_glicko + 0.3·P_trueskill (weights
   renormalized if a system lacks data). P_glicko uses the RD-combined
@@ -26,9 +31,31 @@ omitted and the UI says why.
   `clamp(oppElo/1500, 0.6, 1.6)`, a loss counts `−(2 − thatWeight)`
   (beating strong teams helps more; losing to weak teams hurts more),
   normalized to −1..+1.
-- **mapAdj** — `0.15·mean(shrunkWR_A(m) − shrunkWR_B(m))` over predicted-veto
-  maps, where `shrunkWR = 0.5 + (wr − 0.5)·n/(n+6)`. Contributes 0 without
-  per-map data (current provider plan).
+- **mapAdj** — `0.15·mean(edge_m)` over predicted-veto maps, where
+  `edge_m = (shrunkWR_A(m) − shrunkWR_B(m))/2` and
+  `shrunkWR = 0.5 + (wr − 0.5)·n/(n+6)`. Contributes 0 without per-map data
+  (current provider plan).
+
+### Stage 2 — Monte Carlo series simulation (100k draws)
+
+Deterministic: the PRNG (mulberry32) is seeded from the match id via FNV-1a,
+so a match always reports identical numbers. Each of the 100,000 draws:
+
+1. **Samples skill uncertainty** — converts the point estimate to an Elo-scale
+   difference `Δ = 400·log₁₀(p/(1−p))`, perturbs it by
+   `N(0, σ)·(√½) − N(0, σ)·(√½)` with `σ = √(RDa² + RDb²)` (combined Glicko
+   deviations; a moderate default of 200 each when Glicko is absent), then maps
+   back through the logistic. Wide RDs → wide outcome bands; established teams →
+   tight bands.
+2. **Simulates the series** — plays maps until one team reaches
+   `ceil(bestOf/2)`, applying per-map edges over the predicted veto order,
+   recording the exact score and map count.
+
+Reported: **probA** (share of series won), **90% credible interval** (5th–95th
+percentile of the per-draw map probability), **score distribution**
+(e.g. 2-0/2-1/1-2/0-2 shares), **expected maps played**, and **upset
+probability** (share where the pre-match underdog wins).
+
 - **Veto prediction** — standard order (BO3: ban/ban/pick/pick/ban/ban/
   decider; BO1: alternating bans); each team bans its weakest remaining map
   and picks its strongest by shrunk win rate.
@@ -37,6 +64,10 @@ omitted and the UI says why.
 - **Expected props kills** (`props.ts`) — `avgKillsPerPropsMap(last recorded
   matches) × propsMaps(bestOf) × clamp(1500/oppElo, 0.85, 1.15)`; requires
   ≥3 recorded matches, else omitted.
+
+Reference points logged for every simulation: point estimate vs simulated
+series probability, credible interval, expected map count, upset probability,
+and full score distribution — all rendered on the match page.
 
 ## Research splits (`src/lib/research.ts`)
 

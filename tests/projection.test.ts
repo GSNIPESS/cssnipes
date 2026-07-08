@@ -115,7 +115,7 @@ describe("veto prediction", () => {
 });
 
 describe("full projection", () => {
-  it("favors the stronger team and stays in [0.03, 0.97]", () => {
+  it("favors the stronger team; BO3 amplifies the map edge", () => {
     const projection = projectFromInputs({
       ratingsA: ratings(1700),
       ratingsB: ratings(1400),
@@ -124,16 +124,26 @@ describe("full projection", () => {
       mapsA: [],
       mapsB: [],
       bestOf: 3,
+      seed: "test-strong",
+      draws: 20000,
     });
-    expect(projection.probA).toBeGreaterThan(0.75);
-    expect(projection.probA).toBeLessThanOrEqual(0.97);
+    // Series win probability exceeds the per-map point estimate (BO3 amplifies).
+    expect(projection.probA).toBeGreaterThan(projection.pointEstimateA);
+    expect(projection.probA).toBeGreaterThan(0.7);
+    expect(projection.probA).toBeLessThanOrEqual(0.99);
     expect(projection.probA + projection.probB).toBeCloseTo(1, 10);
     expect(projection.components.mapAdjustment).toBe(0);
     expect(projection.coverage.maps).toBe(false);
     expect(projection.confidence).toBe("MEDIUM"); // ratings + form, no maps
+    // Score distribution is a proper distribution summing to ~1.
+    const total = Object.values(projection.simulation.scoreDistribution).reduce(
+      (s, p) => s + p,
+      0
+    );
+    expect(total).toBeCloseTo(1, 6);
   });
 
-  it("degrades to 0.5 base and LOW confidence with no data", () => {
+  it("a symmetric matchup simulates near 50/50 with LOW confidence", () => {
     const empty: TeamRatingsInput = { elo: null, glicko: null, trueskill: null };
     const projection = projectFromInputs({
       ratingsA: empty,
@@ -143,8 +153,30 @@ describe("full projection", () => {
       mapsA: [],
       mapsB: [],
       bestOf: 3,
+      seed: "test-symmetric",
+      draws: 20000,
     });
-    expect(projection.probA).toBeCloseTo(0.5, 6);
+    expect(projection.pointEstimateA).toBeCloseTo(0.5, 6);
+    expect(projection.probA).toBeGreaterThan(0.45);
+    expect(projection.probA).toBeLessThan(0.55);
     expect(projection.confidence).toBe("LOW");
+  });
+
+  it("is deterministic for a fixed seed", () => {
+    const args = {
+      ratingsA: ratings(1600),
+      ratingsB: ratings(1500),
+      formA: [],
+      formB: [],
+      mapsA: [],
+      mapsB: [],
+      bestOf: 3,
+      seed: "repeatable",
+      draws: 5000,
+    };
+    const a = projectFromInputs(args);
+    const b = projectFromInputs(args);
+    expect(a.probA).toBe(b.probA);
+    expect(a.simulation.expectedMaps).toBe(b.simulation.expectedMaps);
   });
 });

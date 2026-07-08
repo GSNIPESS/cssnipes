@@ -19,6 +19,7 @@ interface Item {
 
 const COMMANDS: Array<{ label: string; href: string; hint?: string }> = [
   { label: "Open CS2 overview", href: "/cs2" },
+  { label: "7-day schedule", href: "/cs2/schedule" },
   { label: "Today's matches", href: "/cs2/matches?tab=upcoming" },
   { label: "Live matches", href: "/cs2/matches?tab=live" },
   { label: "Rankings", href: "/cs2/rankings" },

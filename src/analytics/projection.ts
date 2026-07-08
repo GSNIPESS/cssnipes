@@ -1,10 +1,17 @@
 import type { PrismaClient } from "@/generated/prisma/client";
 import { eloExpectedScore } from "./elo";
 import { normCdf } from "./gaussian";
+import {
+  DEFAULT_DRAWS,
+  seedFromString,
+  simulateSeries,
+  type SimulationResult,
+} from "./montecarlo";
 
 /**
- * CSSNIPES Projection Model v1 — deterministic research projection for an
- * upcoming (or live) match. Every number is derived from stored results and
+ * CSSNIPES Projection Model v2 — research projection for an upcoming (or live)
+ * match. A deterministic point estimate (v1) feeds a seeded 100k-draw Monte
+ * Carlo simulation (v2). Every number is derived from stored results and
  * every component is returned so the output is fully explainable:
  *
  *   1. Rating blend — win probabilities from Elo, Glicko-2, and TrueSkill,
@@ -14,6 +21,9 @@ import { normCdf } from "./gaussian";
  *      counts more than farming weak ones.
  *   3. Map component — predicted veto from per-map win rates (sample-size
  *      shrunk); contributes only when both teams have map history.
+ *   4. Monte Carlo — samples rating uncertainty (from Glicko RDs) and
+ *      simulates the series map by map, giving score distributions, a 90%
+ *      credible interval, expected map count, and upset probability.
  *
  * No odds, no external feeds, no fabricated inputs: components without data
  * contribute nothing and are flagged in `coverage`.
@@ -63,6 +73,8 @@ export interface MatchProjection {
   probA: number;
   probB: number;
   confidence: "LOW" | "MEDIUM" | "HIGH";
+  /** Deterministic Model v1 point estimate before simulation (0..1). */
+  pointEstimateA: number;
   components: {
     ratingBlend: number | null;
     formAdjustment: number;
@@ -77,6 +89,8 @@ export interface MatchProjection {
     maps: boolean;
   };
   veto: VetoPrediction;
+  /** 100k-draw Monte Carlo (Model v2): score bands, CI, upset probability. */
+  simulation: SimulationResult;
 }
 
 // ---------- pure model core (unit-tested) ----------
@@ -224,6 +238,9 @@ export function projectFromInputs(input: {
   mapsB: MapStrengthInput[];
   bestOf: number;
   labels?: [string, string];
+  /** Stable seed (match id) so the same match always simulates identically. */
+  seed?: string;
+  draws?: number;
 }): MatchProjection {
   const ratingBlend = ratingBlendProbability(input.ratingsA, input.ratingsB);
   const formA = opponentWeightedForm(input.formA);
@@ -232,20 +249,38 @@ export function projectFromInputs(input: {
     formA !== null && formB !== null ? (FORM_WEIGHT * (formA - formB)) / 2 : 0;
 
   const veto = predictVeto(input.bestOf, [input.mapsA, input.mapsB], input.labels);
+  const mapEdges: number[] = [];
   let mapAdjustment = 0;
   if (veto.available && veto.predictedMaps.length) {
-    const edges = veto.predictedMaps.map((mapName) => {
+    for (const mapName of veto.predictedMaps) {
       const a = input.mapsA.find((m) => m.mapName === mapName);
       const b = input.mapsB.find((m) => m.mapName === mapName);
       const wrA = a ? shrunkWinRate(a.winRate, a.sampleSize) : 0.5;
       const wrB = b ? shrunkWinRate(b.winRate, b.sampleSize) : 0.5;
-      return wrA - wrB;
-    });
-    mapAdjustment = MAP_WEIGHT * (edges.reduce((s, e) => s + e, 0) / edges.length);
+      // Per-map edge on the win-probability scale (half the win-rate gap).
+      mapEdges.push((wrA - wrB) / 2);
+    }
+    mapAdjustment = MAP_WEIGHT * (mapEdges.reduce((s, e) => s + e, 0) / mapEdges.length);
   }
 
   const base = ratingBlend ?? 0.5;
-  const probA = clamp(base + formAdjustment + mapAdjustment, 0.03, 0.97);
+  const pointEstimateA = clamp(base + formAdjustment + mapAdjustment, 0.03, 0.97);
+
+  // Rating uncertainty (Elo points) from combined Glicko RDs — the wider the
+  // RDs, the more the simulation spreads. Falls back to a moderate default
+  // when Glicko data is missing so unrated matchups still show honest spread.
+  const rdA = input.ratingsA.glicko?.rd ?? 200;
+  const rdB = input.ratingsB.glicko?.rd ?? 200;
+  const ratingSpread = Math.sqrt(rdA * rdA + rdB * rdB);
+
+  const simulation = simulateSeries({
+    baseMapProbA: pointEstimateA,
+    ratingSpread,
+    mapEdges,
+    bestOf: input.bestOf,
+    draws: input.draws ?? DEFAULT_DRAWS,
+    seed: seedFromString(input.seed ?? `${input.bestOf}:${pointEstimateA.toFixed(4)}`),
+  });
 
   const coverage = {
     ratings: ratingBlend !== null,
@@ -260,11 +295,13 @@ export function projectFromInputs(input: {
   const confidence = score >= 3 ? "HIGH" : score === 2 ? "MEDIUM" : "LOW";
 
   return {
-    probA,
-    probB: 1 - probA,
+    probA: simulation.probA,
+    probB: 1 - simulation.probA,
     confidence,
+    pointEstimateA,
     components: { ratingBlend, formAdjustment, mapAdjustment, formA, formB },
     coverage,
+    simulation,
     veto,
   };
 }
@@ -310,6 +347,7 @@ export async function projectMatch(
     mapsB,
     bestOf: match.bestOf,
     labels: [match.teamA.name, match.teamB.name],
+    seed: matchId,
   });
 
   return {

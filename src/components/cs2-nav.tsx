@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 
 const SECTIONS = [
   { href: "/cs2", label: "Overview", exact: true },
+  { href: "/cs2/schedule", label: "Schedule" },
   { href: "/cs2/matches", label: "Matches" },
   { href: "/cs2/players", label: "Players" },
   { href: "/cs2/teams", label: "Teams" },

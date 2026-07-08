@@ -68,39 +68,104 @@ export default async function MatchDetailPage({
       </div>
 
       {projection?.available && (
-        <div className="mb-6 grid gap-6 lg:grid-cols-2">
-          <Card title="Projection (CSSNIPES Model v1)">
+        <div className="mb-6 space-y-6">
+          <Card
+            title="Projection (CSSNIPES Model v2)"
+            action={
+              <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
+                {projection.simulation.draws.toLocaleString("en-US")} sims ·{" "}
+                {projection.confidence} confidence
+              </span>
+            }
+          >
             <ProbabilityBar
               labelA={projection.teamA}
               labelB={projection.teamB}
               probA={projection.probA}
             />
-            <dl className="mt-4 space-y-1 text-xs text-muted">
-              <ProjectionRow
-                label="Rating blend (Elo · Glicko-2 · TrueSkill)"
-                value={
-                  projection.components.ratingBlend !== null
-                    ? `${Math.round(projection.components.ratingBlend * 100)}% ${projection.teamA}`
-                    : "no rating history"
-                }
-              />
-              <ProjectionRow
-                label="Opponent-weighted form (last 10)"
-                value={`${signed(projection.components.formAdjustment * 100)}pp · samples ${projection.coverage.formA}/${projection.coverage.formB}`}
-              />
-              <ProjectionRow
-                label="Map component"
-                value={
-                  projection.coverage.maps
-                    ? `${signed(projection.components.mapAdjustment * 100)}pp from predicted maps`
-                    : "no per-map history from provider (contributes 0)"
-                }
-              />
-              <ProjectionRow label="Confidence" value={projection.confidence} />
-            </dl>
-            <p className="mt-3 text-xs text-muted">
-              Deterministic research projection computed from stored results
-              only — not betting advice.
+            <div className="mt-4 grid gap-6 md:grid-cols-2">
+              <div>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+                  Model inputs
+                </h3>
+                <dl className="space-y-1 text-xs text-muted">
+                  <ProjectionRow
+                    label="Rating blend (Elo · Glicko-2 · TrueSkill)"
+                    value={
+                      projection.components.ratingBlend !== null
+                        ? `${Math.round(projection.components.ratingBlend * 100)}% ${projection.teamA}`
+                        : "no rating history"
+                    }
+                  />
+                  <ProjectionRow
+                    label="Opponent-weighted form (last 10)"
+                    value={`${signed(projection.components.formAdjustment * 100)}pp · samples ${projection.coverage.formA}/${projection.coverage.formB}`}
+                  />
+                  <ProjectionRow
+                    label="Map component"
+                    value={
+                      projection.coverage.maps
+                        ? `${signed(projection.components.mapAdjustment * 100)}pp from predicted maps`
+                        : "no per-map history (contributes 0)"
+                    }
+                  />
+                  <ProjectionRow
+                    label="Point estimate (pre-sim)"
+                    value={`${Math.round(projection.pointEstimateA * 100)}% ${projection.teamA}`}
+                  />
+                </dl>
+              </div>
+              <div>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted">
+                  Simulation output
+                </h3>
+                <dl className="space-y-1 text-xs text-muted">
+                  <ProjectionRow
+                    label="90% credible interval (map win %)"
+                    value={`${Math.round(projection.simulation.ci90[0] * 100)}–${Math.round(projection.simulation.ci90[1] * 100)}%`}
+                  />
+                  <ProjectionRow
+                    label="Expected maps played"
+                    value={projection.simulation.expectedMaps.toFixed(2)}
+                  />
+                  <ProjectionRow
+                    label="Upset probability"
+                    value={`${Math.round(projection.simulation.upsetProbability * 100)}%`}
+                  />
+                  <ProjectionRow
+                    label="Series format"
+                    value={`Best of ${match.bestOf}`}
+                  />
+                </dl>
+              </div>
+            </div>
+
+            <h3 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-muted">
+              Series score distribution
+            </h3>
+            <ul className="space-y-1.5">
+              {Object.entries(projection.simulation.scoreDistribution)
+                .sort((a, b) => b[1] - a[1])
+                .map(([score, p]) => (
+                  <li key={score} className="flex items-center gap-3 text-xs">
+                    <span className="w-8 shrink-0 font-mono tabular-nums">{score}</span>
+                    <span className="h-2 flex-1 overflow-hidden rounded bg-surface-2">
+                      <span
+                        className="block h-full bg-accent"
+                        style={{ width: `${Math.round(p * 100)}%` }}
+                      />
+                    </span>
+                    <span className="w-10 shrink-0 text-right font-mono tabular-nums text-muted">
+                      {Math.round(p * 100)}%
+                    </span>
+                  </li>
+                ))}
+            </ul>
+            <p className="mt-4 text-xs text-muted">
+              {`${projection.simulation.draws.toLocaleString("en-US")} seeded Monte Carlo draws`}{" "}
+              (deterministic per match). Skill is sampled from each team&apos;s
+              rating deviation, then maps are simulated one by one. Research
+              projection from stored results only — not betting advice.
             </p>
           </Card>
 
