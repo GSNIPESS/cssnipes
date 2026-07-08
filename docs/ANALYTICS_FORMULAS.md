@@ -65,6 +65,23 @@ probability** (share where the pre-match underdog wins).
   matches) × propsMaps(bestOf) × clamp(1500/oppElo, 0.85, 1.15)`; requires
   ≥3 recorded matches, else omitted.
 
+### Player kills/headshots scoresheet (`player-props.ts`)
+
+Per rostered player, a projected **exact** kills and headshots total for maps
+1–2 (map 1 for BO1), with an 80% prediction interval. Seeded Monte Carlo
+bootstrap (20k draws) over the player's own last-10 maps-1+2 stat lines:
+
+- Each draw resamples one historical maps-1+2 line, multiplies kills by the
+  opponent-difficulty factor `clamp(1500/oppElo, 0.85, 1.15)`, and adds
+  Gaussian jitter `N(0, 0.5·σ)` where σ is the player's kill stdev.
+- Headshots are drawn from the player's historical HS% (`ΣHS/Σkills`, wobbled
+  ±5pp per draw) applied to the simulated kills, so HS ≤ kills always.
+- Reports `expected` = rounded mean, `low`/`high` = 10th/90th percentile.
+- **Data-gated**: needs ≥3 recorded maps-1+2 lines per player. On the current
+  Fixtures plan (no per-map player stats), every player shows the locked
+  state; it populates automatically once such stats are ingested. No numbers
+  are ever synthesized in the absence of data.
+
 Reference points logged for every simulation: point estimate vs simulated
 series probability, credible interval, expected map count, upset probability,
 and full score distribution — all rendered on the match page.

@@ -2,9 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { projectMatch } from "@/analytics/projection";
 import { ProbabilityBar } from "@/components/probability-bar";
+import { PlayerScoresheet } from "@/components/player-scoresheet";
 import { Badge, Card, EmptyState, Table, Td, Th, TeamLink, PlayerLink } from "@/components/ui";
 import { formatDateTime, formatDecimal } from "@/lib/format";
 import { getMatchDetail } from "@/lib/queries/matches";
+import { getMatchPlayerProps } from "@/lib/queries/player-props";
 import { prisma } from "@/lib/prisma";
 
 export default async function MatchDetailPage({
@@ -18,7 +20,9 @@ export default async function MatchDetailPage({
 
   const completed = match.status === "COMPLETED";
   const pending = match.status === "SCHEDULED" || match.status === "LIVE";
-  const projection = pending ? await projectMatch(prisma, id) : null;
+  const [projection, playerProps] = pending
+    ? await Promise.all([projectMatch(prisma, id), getMatchPlayerProps(id)])
+    : [null, null];
 
   return (
     <>
@@ -194,6 +198,8 @@ export default async function MatchDetailPage({
               <EmptyState>{projection.veto.reason}</EmptyState>
             )}
           </Card>
+
+          {playerProps && <PlayerScoresheet props={playerProps} />}
         </div>
       )}
 
