@@ -327,6 +327,16 @@ async function OverviewTab({
                 No recorded team matches during this player&apos;s roster history.
               </EmptyState>
             )}
+            {research.notes.length > 0 && (
+              <ul className="mt-4 space-y-1.5 border-t border-edge pt-4">
+                {research.notes.map((line) => (
+                  <li key={line} className="flex items-baseline gap-2 text-sm">
+                    <span aria-hidden className="text-accent">▸</span>
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            )}
             <p className="mt-3 text-xs text-muted">
               Computed from this player&apos;s teams&apos; completed matches — full
               history for the current team (the data provider does not expose

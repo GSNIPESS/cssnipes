@@ -1,6 +1,10 @@
 import { prisma } from "@/lib/prisma";
 import { MatchStatus } from "@/generated/prisma/client";
-import { computeResearchSplits, type ResearchMatch } from "@/lib/research";
+import {
+  computeResearchSplits,
+  computeTendencies,
+  type ResearchMatch,
+} from "@/lib/research";
 
 /**
  * Loaders that assemble ResearchMatch inputs for the splits engine.
@@ -101,7 +105,7 @@ export async function getPlayerResearchSplits(playerId: string) {
   );
 }
 
-/** Research splits over a team's complete match history. */
+/** Research splits + situational tendencies over a team's complete history. */
 export async function getTeamResearchSplits(teamId: string) {
   const [rows, eloTable] = await Promise.all([
     prisma.match.findMany({
@@ -114,7 +118,11 @@ export async function getTeamResearchSplits(teamId: string) {
     }),
     latestEloTable(),
   ]);
-  return computeResearchSplits(toResearchMatches(rows, new Set([teamId]), eloTable));
+  const research = toResearchMatches(rows, new Set([teamId]), eloTable);
+  return {
+    splits: computeResearchSplits(research),
+    tendencies: computeTendencies(research, eloTable.get(teamId)?.elo ?? null),
+  };
 }
 
 /**

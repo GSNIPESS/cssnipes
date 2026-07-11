@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { BarRatioChart } from "@/components/charts/bar-ratio-chart";
 import { TimeSeriesChart } from "@/components/charts/time-series-chart";
 import { ResearchSplitsSections } from "@/components/research-sections";
+import { TendenciesCard } from "@/components/tendencies-card";
 import { Card, EmptyState, PlayerLink, Table, Td, Th } from "@/components/ui";
 import { getRosterStability, getTeamResearchSplits } from "@/lib/queries/research";
 import { MatchList } from "@/components/match-row";
@@ -32,12 +33,13 @@ export default async function TeamProfilePage({
   const team = await getTeamBySlug(slug);
   if (!team) notFound();
 
-  const [record, recentMatches, splits, stability] = await Promise.all([
+  const [record, recentMatches, research, stability] = await Promise.all([
     getTeamRecord(team.id),
     getTeamRecentMatches(team.id, 10),
     getTeamResearchSplits(team.id),
     getRosterStability(team.id),
   ]);
+  const { splits, tendencies } = research;
 
   const latestRanking = team.rankings[0];
   const latestElo = team.ratings.find((r) => r.system === "ELO");
@@ -95,6 +97,8 @@ export default async function TeamProfilePage({
           )}
 
           <ResearchSplitsSections splits={splits} subject="team" />
+
+          <TendenciesCard tendencies={tendencies} />
 
           <Card title="Recent matches">
             {recentMatches.length ? (

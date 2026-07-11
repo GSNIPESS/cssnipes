@@ -29,6 +29,7 @@ const COMMANDS: Array<{ label: string; href: string; hint?: string }> = [
   { label: "Teams", href: "/cs2/teams" },
   { label: "Events", href: "/cs2/events" },
   { label: "Full search page", href: "/cs2/search" },
+  { label: "Methods & data integrity", href: "/cs2/methods" },
   {
     label: "Historical snapshot (time machine)",
     href: "/cs2/rankings",

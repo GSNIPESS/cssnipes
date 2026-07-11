@@ -7,6 +7,8 @@ import { Badge, Card, EmptyState, Table, Td, Th, TeamLink, PlayerLink } from "@/
 import { formatDateTime, formatDecimal } from "@/lib/format";
 import { getMatchDetail } from "@/lib/queries/matches";
 import { getMatchPlayerProps } from "@/lib/queries/player-props";
+import { getMatchResearchReport } from "@/lib/queries/match-report";
+import { SourceBadge } from "@/components/source-badge";
 import { prisma } from "@/lib/prisma";
 
 export default async function MatchDetailPage({
@@ -23,6 +25,7 @@ export default async function MatchDetailPage({
   const [projection, playerProps] = pending
     ? await Promise.all([projectMatch(prisma, id), getMatchPlayerProps(id)])
     : [null, null];
+  const report = completed ? await getMatchResearchReport(id) : null;
 
   return (
     <>
@@ -70,6 +73,91 @@ export default async function MatchDetailPage({
           </div>
         </div>
       </div>
+
+      {report?.available && report.teamA && report.teamB && (
+        <div className="mb-6 space-y-6">
+          <Card
+            title="Research report"
+            action={<SourceBadge source="MODEL" />}
+          >
+            {report.takeaways.length > 0 && (
+              <ul className="mb-5 space-y-2">
+                {report.takeaways.map((line) => (
+                  <li key={line} className="flex items-baseline gap-2 text-sm">
+                    <span aria-hidden className="text-accent">▸</span>
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <ReportStat
+                label="Pre-match expectation"
+                value={
+                  report.expectedA !== null
+                    ? `${Math.round(report.expectedA * 100)}% ${report.teamA.name}`
+                    : "no prior rating"
+                }
+              />
+              <ReportStat
+                label="Upset rating"
+                value={report.upsetRating !== null ? `${report.upsetRating}/100` : "—"}
+                highlight={report.underdogWon === true}
+              />
+              <ReportStat
+                label="H2H entering"
+                value={
+                  report.h2hEntering.meetings
+                    ? `${report.h2hEntering.winsA}–${report.h2hEntering.winsB}`
+                    : "first meeting"
+                }
+              />
+              <ReportStat
+                label="Form entering (last 10)"
+                value={`${report.teamA.formEntering.won}/${report.teamA.formEntering.played} · ${report.teamB.formEntering.won}/${report.teamB.formEntering.played}`}
+              />
+            </div>
+
+            <h3 className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wider text-muted">
+              Rating movement on this result
+            </h3>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[report.teamA, report.teamB].map((side) => (
+                <div
+                  key={side.id}
+                  className="flex items-center justify-between rounded-md bg-surface-2 px-3 py-2 text-sm"
+                >
+                  <TeamLink slug={side.slug} name={side.name} />
+                  <span className="font-mono tabular-nums">
+                    {side.eloBefore !== null && side.eloAfter !== null ? (
+                      <>
+                        {Math.round(side.eloBefore)} →{" "}
+                        {Math.round(side.eloAfter)}{" "}
+                        <span
+                          className={
+                            side.eloAfter >= side.eloBefore ? "text-win" : "text-loss"
+                          }
+                        >
+                          ({side.eloAfter >= side.eloBefore ? "+" : ""}
+                          {Math.round(side.eloAfter - side.eloBefore)})
+                        </span>
+                      </>
+                    ) : (
+                      <span className="text-muted">first rated match</span>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <p className="mt-4 text-xs text-muted">
+              Computed from rating history as it stood when the match was
+              played — pre-match Elo expectation vs the observed result. See
+              Methods for formulas.
+            </p>
+          </Card>
+        </div>
+      )}
 
       {projection?.available && (
         <div className="mb-6 space-y-6">
@@ -285,6 +373,27 @@ export default async function MatchDetailPage({
         ))}
       </div>
     </>
+  );
+}
+
+function ReportStat({
+  label,
+  value,
+  highlight = false,
+}: {
+  label: string;
+  value: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div className="rounded-md bg-surface-2 p-3">
+      <div className="text-xs uppercase tracking-wider text-muted">{label}</div>
+      <div
+        className={`mt-1 font-mono text-lg font-bold ${highlight ? "text-accent" : ""}`}
+      >
+        {value}
+      </div>
+    </div>
   );
 }
 

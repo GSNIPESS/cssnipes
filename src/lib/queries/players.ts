@@ -105,7 +105,14 @@ export async function getPlayerResearch(playerId: string) {
     select: { teamId: true, startDate: true, endDate: true },
   });
   if (rosters.length === 0) {
-    return { career: null, recent: null, events: [], eventCount: 0, teammates: [] };
+    return {
+      career: null,
+      recent: null,
+      events: [],
+      eventCount: 0,
+      teammates: [],
+      notes: [] as string[],
+    };
   }
 
   // Current membership: full team history (the provider exposes no real join
@@ -122,7 +129,11 @@ export async function getPlayerResearch(playerId: string) {
     select: {
       winnerId: true,
       scheduledAt: true,
-      event: { select: { id: true, slug: true, name: true, startDate: true } },
+      teamAId: true,
+      teamBId: true,
+      event: {
+        select: { id: true, slug: true, name: true, startDate: true, tier: true },
+      },
     },
     orderBy: { scheduledAt: "desc" },
   });
@@ -165,6 +176,47 @@ export async function getPlayerResearch(playerId: string) {
     }
   }
 
+  // Research notes — countable facts, verifiable against this page.
+  const notes: string[] = [];
+  const teamIdSet = new Set(teamIds);
+  const opponents = new Set<string>();
+  for (const m of matches) {
+    const opp = teamIdSet.has(m.teamAId)
+      ? teamIdSet.has(m.teamBId)
+        ? null
+        : m.teamBId
+      : m.teamAId;
+    if (opp) opponents.add(opp);
+  }
+  if (opponents.size >= 5) {
+    notes.push(`Has competed against ${opponents.size} unique opponents.`);
+  }
+  if (matches.length >= 5) {
+    const newest = matches[0].scheduledAt;
+    const oldest = matches[matches.length - 1].scheduledAt;
+    const years = (newest.getTime() - oldest.getTime()) / (365.25 * 24 * 3600 * 1000);
+    if (years >= 1) {
+      notes.push(
+        `Recorded team matches span ${years.toFixed(1)} years (${oldest.getUTCFullYear()}–${newest.getUTCFullYear()}).`
+      );
+    }
+    const currentTeamId = rosters.find((r) => r.endDate === null)?.teamId;
+    if (currentTeamId && teamIds.length > 1) {
+      const withCurrent = matches.filter(
+        (m) => m.teamAId === currentTeamId || m.teamBId === currentTeamId
+      ).length;
+      notes.push(
+        `${Math.round((withCurrent / matches.length) * 100)}% of recorded matches came with the current organization.`
+      );
+    }
+    const sTier = new Set(
+      matches.filter((m) => m.event.tier === "S").map((m) => m.event.id)
+    ).size;
+    if (sTier > 0) {
+      notes.push(`Appeared at ${sTier} S-tier event${sTier === 1 ? "" : "s"}.`);
+    }
+  }
+
   return {
     career: { played: matches.length, won, lost: matches.length - won },
     recent: {
@@ -175,6 +227,7 @@ export async function getPlayerResearch(playerId: string) {
     events,
     eventCount: eventsById.size,
     teammates: [...mates.values()].slice(0, 12),
+    notes,
   };
 }
 

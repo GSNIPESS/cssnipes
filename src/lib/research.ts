@@ -156,6 +156,60 @@ export function computeResearchSplits(matches: ResearchMatch[]): ResearchSplits 
 
 const TIER_ORDER = ["S", "A", "B", "C", "QUALIFIER"];
 
+export interface Tendencies {
+  baseline: Record_;
+  afterWin: Record_;
+  afterLoss: Record_;
+  vsStronger: Record_; // opponent Elo above own
+  vsWeaker: Record_;
+  shortRest: Record_; // ≤2 days since previous match
+  normalRest: Record_; // 3–7 days
+  longRest: Record_; // >7 days
+}
+
+/**
+ * Situational tendencies over a subject's completed matches (newest-first
+ * input). "Stronger/weaker" compares the opponent's current Elo to the
+ * subject's own; rest buckets use days since the previous match. MODEL
+ * values — see docs/ANALYTICS_FORMULAS.md.
+ */
+export function computeTendencies(
+  matches: ResearchMatch[],
+  ownElo: number | null
+): Tendencies {
+  const t: Tendencies = {
+    baseline: record(),
+    afterWin: record(),
+    afterLoss: record(),
+    vsStronger: record(),
+    vsWeaker: record(),
+    shortRest: record(),
+    normalRest: record(),
+    longRest: record(),
+  };
+
+  const chrono = [...matches].reverse();
+  for (let i = 0; i < chrono.length; i++) {
+    const m = chrono[i];
+    add(t.baseline, m.won);
+
+    const prev = chrono[i - 1];
+    if (prev) {
+      add(prev.won ? t.afterWin : t.afterLoss, m.won);
+      const restDays =
+        (m.date.getTime() - prev.date.getTime()) / (24 * 3600 * 1000);
+      if (restDays <= 2) add(t.shortRest, m.won);
+      else if (restDays <= 7) add(t.normalRest, m.won);
+      else add(t.longRest, m.won);
+    }
+
+    if (ownElo !== null && m.opponent.elo !== null) {
+      add(m.opponent.elo > ownElo ? t.vsStronger : t.vsWeaker, m.won);
+    }
+  }
+  return t;
+}
+
 /**
  * Short factual observations derived only from the splits — every sentence
  * is directly verifiable against the numbers rendered alongside it.

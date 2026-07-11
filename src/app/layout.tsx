@@ -40,8 +40,11 @@ export default function RootLayout({
           {children}
         </main>
         <footer className="border-t border-edge py-6">
-          <div className="mx-auto max-w-6xl px-4 text-sm text-muted sm:px-6">
-            CSSNIPES — research platform. No betting content.
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-1 px-4 text-sm text-muted sm:px-6">
+            <span>CSSNIPES — research platform. No betting content.</span>
+            <a href="/cs2/methods" className="hover:text-accent">
+              Methods &amp; data integrity
+            </a>
           </div>
         </footer>
       </body>

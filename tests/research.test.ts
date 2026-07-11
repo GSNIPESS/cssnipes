@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   computeResearchSplits,
+  computeTendencies,
   deriveInsights,
   type ResearchMatch,
 } from "@/lib/research";
@@ -119,5 +120,46 @@ describe("derived insights", () => {
     const insights = deriveInsights(computeResearchSplits([...lan, ...online]));
     expect(insights.length).toBeLessThanOrEqual(4);
     expect(insights.length).toBeGreaterThan(0);
+  });
+});
+
+describe("tendencies", () => {
+  it("partitions by previous result", () => {
+    // Chronological W L W W L → follows-a-win: L,W,L (1-2);
+    // follows-a-loss: W (1-0). Input is newest-first.
+    const chrono = [true, false, true, true, false];
+    const input = chrono
+      .map((won, i) =>
+        match(won, { date: new Date(Date.UTC(2026, 0, i + 1)) })
+      )
+      .reverse();
+    const t = computeTendencies(input, 1500);
+    expect(t.baseline).toEqual({ played: 5, won: 3, lost: 2 });
+    expect(t.afterWin).toEqual({ played: 3, won: 1, lost: 2 });
+    expect(t.afterLoss).toEqual({ played: 1, won: 1, lost: 0 });
+  });
+
+  it("splits by opponent strength relative to own Elo", () => {
+    const input = [
+      match(true, { opponent: { id: "a", slug: "a", name: "A", elo: 1800, rank: 5 } }),
+      match(false, { opponent: { id: "b", slug: "b", name: "B", elo: 1200, rank: 900 } }),
+    ];
+    const t = computeTendencies(input, 1500);
+    expect(t.vsStronger).toEqual({ played: 1, won: 1, lost: 0 });
+    expect(t.vsWeaker).toEqual({ played: 1, won: 0, lost: 1 });
+    // Without own Elo, strength splits stay empty.
+    const noElo = computeTendencies(input, null);
+    expect(noElo.vsStronger.played + noElo.vsWeaker.played).toBe(0);
+  });
+
+  it("buckets rest days", () => {
+    const dates = ["2026-01-01", "2026-01-02", "2026-01-06", "2026-01-20"];
+    const input = dates
+      .map((d) => match(true, { date: new Date(`${d}T12:00:00Z`) }))
+      .reverse();
+    const t = computeTendencies(input, 1500);
+    expect(t.shortRest.played).toBe(1); // 1 day gap
+    expect(t.normalRest.played).toBe(1); // 4 day gap
+    expect(t.longRest.played).toBe(1); // 14 day gap
   });
 });
